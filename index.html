@@ -296,7 +296,7 @@
         ul.innerHTML = '<li class="p-4 text-sm text-gray-500">기록이 없습니다.</li>';
         return;
       }
-      state.logs.slice(0,200).forEach(L => {
+      state.logs.slice(0,80).forEach(L => {
         const li = document.createElement('li');
         li.className = 'p-3 rounded-xl border bg-white shadow-sm';
         li.innerHTML = `
@@ -423,9 +423,12 @@
 
     // ====== Init ======
     async function init() {
-      await load();
+      // 1) 먼저 가벼운 UI를 즉시 렌더링 (네트워크 대기 없음)
+      renderMemberGrid();
+      renderWhoAmI();
+      renderStatus();
 
-      // Bindings (grid buttons)
+      // 2) 이벤트 바인딩
       $('#useNowBtn').addEventListener('click', useNow);
       $('#returnBtn').addEventListener('click', returnNow);
       $('#resvForm').addEventListener('submit', addReservation);
@@ -433,6 +436,13 @@
       $('#resetBtn').addEventListener('click', hardReset);
 
       autoFillDateInputs();
+
+      // 3) 백그라운드로 원격 상태 로드, 완료 후 전체 렌더
+      try {
+        await load();
+      } catch (e) {
+        console.warn('load failed, using local if any', e);
+      }
       renderAll();
     }
 
