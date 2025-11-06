@@ -468,8 +468,6 @@
           console.assert(hasOverlap(c.toISOString(), d.toISOString()) === true, 'hasOverlap should detect overlap');
           state.reservations = state.reservations.filter(x=>x.id!=='t1');
         })();
-        // 2) CSV export smoke test removed to prevent auto-download on load
-        })();
       } catch(e) { console.warn('SelfTest error', e); }
     }
 
