@@ -108,7 +108,7 @@
 
     // If you want GitHub Pages + Google Sheets, put your Apps Script WebApp URL here
     // e.g. https://script.google.com/macros/s/XXXX/exec
-    const API_URL = 'PUT_YOUR_APPS_SCRIPT_WEB_APP_EXEC_URL';
+    const API_URL = 'https://script.google.com/a/macros/talktomeinkorean.com/s/AKfycbylEAiWvhgy2VgM8MFSlGxlSGRnQ9b4mrGPlLC4UGCRzBoVAbjjNVyeeps-X3y2zEIN/exec';
 
     const BACKEND = (typeof google !== 'undefined' && google.script && google.script.run)
       ? 'sheets'
@@ -400,7 +400,6 @@
       renderAll();
     }
 
-
     function hardReset() {
       if (!confirm('모든 데이터(사용자 선택, 예약, 기록)를 초기화할까요?')) return;
       localStorage.removeItem(LS_KEY);
@@ -468,6 +467,7 @@
           console.assert(hasOverlap(c.toISOString(), d.toISOString()) === true, 'hasOverlap should detect overlap');
           state.reservations = state.reservations.filter(x=>x.id!=='t1');
         })();
+        // 2) CSV export smoke test removed to prevent auto-download on load
       } catch(e) { console.warn('SelfTest error', e); }
     }
 
