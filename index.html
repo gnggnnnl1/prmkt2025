@@ -80,7 +80,6 @@
       <div class="flex items-center justify-between">
         <h2 class="text-xl font-bold">사용 기록</h2>
         <div class="flex gap-2">
-          <button id="exportCsvBtn" class="text-xs px-2 py-1 rounded-lg border">CSV 내보내기</button>
           <button id="resetBtn" class="text-xs px-2 py-1 rounded-lg border text-red-600 border-red-300">전체 초기화</button>
         </div>
       </div>
@@ -401,20 +400,6 @@
       renderAll();
     }
 
-    function exportCSV() {
-      const rows = [
-        ['timestamp','name','action','meta']
-      ];
-      state.logs.forEach(L => {
-        rows.push([L.tsISO, L.name, L.action, JSON.stringify(L.meta||{})]);
-      });
-      const csv = rows.map(r => r.map(cell => `"${String(cell).replaceAll('"','""')}"`).join(',')).join('\n');
-      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url; a.download = 'pcard_logs.csv'; a.click();
-      URL.revokeObjectURL(url);
-    }
 
     function hardReset() {
       if (!confirm('모든 데이터(사용자 선택, 예약, 기록)를 초기화할까요?')) return;
@@ -446,7 +431,6 @@
       $('#returnBtn').addEventListener('click', returnNow);
       $('#resvForm').addEventListener('submit', addReservation);
       $('#clearPastBtn').addEventListener('click', clearPastReservations);
-      $('#exportCsvBtn').addEventListener('click', exportCSV);
       $('#resetBtn').addEventListener('click', hardReset);
 
       autoFillDateInputs();
