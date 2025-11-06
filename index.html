@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>법카 예약 · 사용 기록 | 프로모션 마케팅 팀</title>
+  <meta name="description" content="프로모션 마케팅 팀 법카 예약 및 사용/반납 기록 웹앱" />
+  <!-- Tailwind Play CDN (single-file, GH Pages-friendly) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    /* Safe-area for iOS notch */
+    :root { --sab: env(safe-area-inset-bottom); }
+    .safe-bottom { padding-bottom: calc(1rem + var(--sab)); }
+    .sticky-cta { padding-bottom: calc(0.5rem + var(--sab)); }
+    /* Hide number input spinners */
+    input[type=number]::-webkit-outer-spin-button,
+    input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+    input[type=number] { -moz-appearance: textfield; }
+  </style>
+</head>
+<body class="bg-white text-gray-900">
+  <!-- App container -->
+  <div class="max-w-md mx-auto min-h-screen pb-28">
+    <!-- Header -->
+    <header class="sticky top-0 z-30 bg-white/80 backdrop-blur border-b">
+      <div class="px-4 py-3">
+        <p class="text-xs text-gray-500">프로모션 마케팅 팀</p>
+        <h1 class="text-xl font-bold">법카 예약 · 사용 기록</h1>
+        <div id="cardStatus" class="mt-2 flex items-center gap-2 text-sm"></div>
+      </div>
+    </header>
+
+    <!-- User selection (grid buttons) -->
+    <section class="px-4 pt-4">
+      <h2 class="text-xl font-bold">지금 사용 시작</h2>
+      <p class="text-sm text-gray-400 mt-1">사용자를 탭하여 선택</p>
+      <div id="memberGrid" class="mt-3 grid grid-cols-3 gap-3"><!-- JS inject --></div>
+      <p id="whoami" class="mt-2 text-xs text-gray-500"></p>
+    </section>
+
+    <!-- Quick status pills -->
+    <section class="px-4 mt-4">
+      <div class="flex flex-wrap gap-2 text-xs" id="statusPills"><!-- JS inject --></div>
+    </section>
+
+    <!-- Reservation form -->
+    <section class="px-4 mt-6">
+      <h2 class="text-xl font-bold">예약하기</h2>
+      <form id="resvForm" class="mt-3 grid grid-cols-1 gap-3">
+        <div>
+          <label class="text-sm">시작</label>
+          <input type="datetime-local" id="startAt" class="mt-1 w-full rounded-xl border px-3 py-2" required />
+        </div>
+        <div>
+          <label class="text-sm">종료</label>
+          <input type="datetime-local" id="endAt" class="mt-1 w-full rounded-xl border px-3 py-2" required />
+        </div>
+        <div>
+          <label class="text-sm">용도(메모)</label>
+          <input type="text" id="purpose" placeholder="예: 외근 결제, 촬영 소품 구입" class="mt-1 w-full rounded-xl border px-3 py-2" />
+        </div>
+        <button class="rounded-xl bg-white border border-gray-300 text-gray-900 hover:bg-gray-100 transition-colors py-3 font-medium">예약</button>
+      </form>
+      <p class="text-xs text-gray-500 mt-2">※ 예약 시간 중복은 자동으로 차단됩니다.</p>
+    </section>
+
+    <!-- Upcoming reservations -->
+    <section class="px-4 mt-6">
+      <div class="flex items-center justify-between">
+        <h2 class="text-xl font-bold">예약 목록</h2>
+        <button id="clearPastBtn" class="text-xs text-gray-500 underline">지난 예약 정리</button>
+      </div>
+      <ul id="resvList" class="mt-3 divide-y border rounded-xl overflow-hidden">
+        <!-- JS inject -->
+      </ul>
+    </section>
+
+    <!-- Usage log -->
+    <section class="px-4 mt-6 mb-40">
+      <div class="flex items-center justify-between">
+        <h2 class="text-xl font-bold">사용 기록</h2>
+        <div class="flex gap-2">
+          <button id="exportCsvBtn" class="text-xs px-2 py-1 rounded-lg border">CSV 내보내기</button>
+          <button id="resetBtn" class="text-xs px-2 py-1 rounded-lg border text-red-600 border-red-300">전체 초기화</button>
+        </div>
+      </div>
+      <ul id="logList" class="mt-3 space-y-2">
+        <!-- JS inject -->
+      </ul>
+    </section>
+  </div>
+
+  <!-- Sticky Quick Actions -->
+  <div class="fixed inset-x-0 bottom-0 z-40 bg-white/85 backdrop-blur border-t">
+    <div class="max-w-md mx-auto px-4 pt-2 sticky-cta">
+      <div class="grid grid-cols-2 gap-3">
+        <button id="useNowBtn" class="rounded-2xl py-3 font-semibold bg-[#D9FF3F] text-black hover:bg-[#C8F536] transition-colors">사용 시작</button>
+        <button id="returnBtn" class="rounded-2xl py-3 font-semibold bg-black text-white hover:bg-gray-900 transition-colors">반납 완료</button>
+      </div>
+      <div class="text-[10px] text-gray-500 mt-2 mb-3 text-center">하단 빠른 동작 · 현재 선택 사용자로 처리</div>
+    </div>
+  </div>
+
+  <script>
+    // ====== Configuration ======
+    const TEAM_NAME = '프로모션 마케팅 팀';
+    const MEMBERS = ['결','소희','연우','유진','지완','현화'];
+    const LS_KEY = 'pcard_app_v1';
+
+    // If you want GitHub Pages + Google Sheets, put your Apps Script WebApp URL here
+    // e.g. https://script.google.com/macros/s/XXXX/exec
+    const API_URL = 'PUT_YOUR_APPS_SCRIPT_WEB_APP_EXEC_URL';
+
+    const BACKEND = (typeof google !== 'undefined' && google.script && google.script.run)
+      ? 'sheets'
+      : (typeof API_URL === 'string' && API_URL.startsWith('https://script.google.com/'))
+        ? 'sheets_rest'
+        : 'local';
+
+    // Apps Script (htmlService) direct binding
+    function gsRun(fnName, payload){
+      return new Promise((resolve, reject)=>{
+        try{
+          if (BACKEND !== 'sheets') throw new Error('not-sheets');
+          google.script.run
+            .withSuccessHandler(resolve)
+            .withFailureHandler(reject)[fnName](payload || null);
+        }catch(e){ reject(e); }
+      });
+    }
+
+    // Apps Script WebApp (REST) helpers — works from GitHub Pages, Netlify, etc.
+    async function gsRestGetState(){
+      if (BACKEND !== 'sheets_rest') throw new Error('not-sheets-rest');
+      const url = API_URL + '?fn=getState&ts=' + Date.now();
+      const res = await fetch(url, { method: 'GET', mode: 'cors' });
+      if (!res.ok) throw new Error('GET failed ' + res.status);
+      return await res.json();
+    }
+    async function gsRestSaveState(snapshot){
+      if (BACKEND !== 'sheets_rest') throw new Error('not-sheets-rest');
+      const body = new URLSearchParams({ fn: 'saveState', payload: JSON.stringify(snapshot) });
+      const res = await fetch(API_URL, {
+        method: 'POST', mode: 'cors',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body
+      });
+      if (!res.ok) throw new Error('POST failed ' + res.status);
+      return await res.text();
+    }
+
+    // ====== State ======
+    const state = {
+      currentHolder: null, // { name, sinceISO }
+      reservations: [],   // [{ id, name, startISO, endISO, purpose }]
+      logs: [],           // [{ tsISO, name, action, meta }]
+      me: null            // selected member name
+    };
+
+    // ====== Utils ======
+    const $ = sel => document.querySelector(sel);
+    const $$ = sel => Array.from(document.querySelectorAll(sel));
+    const fmt = (iso) => {
+      try {
+        const d = new Date(iso);
+        return new Intl.DateTimeFormat('ko-KR', { dateStyle: 'medium', timeStyle: 'short' }).format(d);
+      } catch (e) { return iso; }
+    };
+    const nowISO = () => new Date().toISOString();
+    const uid = () => Math.random().toString(36).slice(2,9);
+
+    async function save(){
+      const snapshot = { currentHolder: state.currentHolder, reservations: state.reservations, logs: state.logs };
+      if (BACKEND === 'sheets'){
+        try{ await gsRun('saveState', snapshot);}catch(e){ /* optionally fall back */ }
+      } else if (BACKEND === 'sheets_rest'){
+        try{ await gsRestSaveState(snapshot);}catch(e){ console.warn('save REST failed', e); }
+      } else {
+        localStorage.setItem(LS_KEY, JSON.stringify(state));
+      }
+    }
+
+    async function load(){
+      if (BACKEND === 'sheets'){
+        try{
+          const remote = await gsRun('getState');
+          if (remote && typeof remote === 'object') Object.assign(state, remote);
+        }catch(e){
+          const raw = localStorage.getItem(LS_KEY);
+          if (raw){ try{ Object.assign(state, JSON.parse(raw)); }catch(_){} }
+        }
+      } else if (BACKEND === 'sheets_rest'){
+        try{
+          const remote = await gsRestGetState();
+          if (remote && typeof remote === 'object') Object.assign(state, remote);
+        }catch(e){
+          const raw = localStorage.getItem(LS_KEY);
+          if (raw){ try{ Object.assign(state, JSON.parse(raw)); }catch(_){} }
+        }
+      } else {
+        const raw = localStorage.getItem(LS_KEY);
+        if (!raw) return; try{ Object.assign(state, JSON.parse(raw)); }catch(_){ }
+      }
+    }
+
+    // Overlap check for reservations
+    function hasOverlap(startISO, endISO, ignoreId=null) {
+      const s = new Date(startISO).getTime();
+      const e = new Date(endISO).getTime();
+      return state.reservations.some(r => {
+        if (ignoreId && r.id === ignoreId) return false;
+        const rs = new Date(r.startISO).getTime();
+        const re = new Date(r.endISO).getTime();
+        return Math.max(s, rs) < Math.min(e, re); // intersect
+      });
+    }
+
+    function sortReservations() {
+      state.reservations.sort((a,b) => new Date(a.startISO) - new Date(b.startISO));
+    }
+
+    // ====== Render ======
+    function renderStatus() {
+      const box = $('#cardStatus');
+      box.innerHTML = '';
+      const dot = document.createElement('span');
+      dot.className = 'inline-block w-2.5 h-2.5 rounded-full';
+      const text = document.createElement('span');
+      text.className = 'text-sm';
+      if (state.currentHolder) {
+        dot.classList.add('bg-black');
+        text.textContent = `사용 중 · ${state.currentHolder.name} (시작: ${fmt(state.currentHolder.sinceISO)})`;
+      } else {
+        dot.classList.add('bg-[#D9FF3F]');
+        text.textContent = '사용 가능';
+      }
+      box.append(dot, text);
+
+      const pills = $('#statusPills');
+      pills.innerHTML = '';
+      const pill = document.createElement('span');
+      pill.className = 'px-2 py-1 rounded-full border text-gray-600';
+      pill.textContent = `팀: ${TEAM_NAME}`;
+      pills.appendChild(pill);
+      if (state.me) {
+        const mep = document.createElement('span');
+        mep.className = 'px-2 py-1 rounded-full border text-gray-600';
+        mep.textContent = `선택 사용자: ${state.me}`;
+        pills.appendChild(mep);
+      }
+    }
+
+    function renderReservations() {
+      sortReservations();
+      const ul = $('#resvList');
+      ul.innerHTML = '';
+      if (state.reservations.length === 0) {
+        ul.innerHTML = '<li class="p-4 text-sm text-gray-500">등록된 예약이 없습니다.</li>';
+        return;
+      }
+      state.reservations.forEach(r => {
+        const li = document.createElement('li');
+        li.className = 'p-3 flex items-start gap-3';
+        li.innerHTML = `
+          <div class="grow">
+            <div class="text-sm font-medium">${r.name}</div>
+            <div class="text-xs text-gray-600 mt-0.5">${fmt(r.startISO)} ~ ${fmt(r.endISO)}</div>
+            ${r.purpose ? `<div class="text-xs text-gray-500 mt-1">${escapeHtml(r.purpose)}</div>` : ''}
+          </div>
+          <div class="shrink-0 flex gap-2">
+            <button data-id="${r.id}" class="cancelResv px-2 py-1 rounded-lg border text-xs">취소</button>
+          </div>`;
+        ul.appendChild(li);
+      });
+
+      // bind cancel
+      $$('#resvList .cancelResv').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          const id = e.currentTarget.getAttribute('data-id');
+          const idx = state.reservations.findIndex(r => r.id === id);
+          if (idx >= 0) {
+            const target = state.reservations[idx];
+            if (!confirm(`예약을 취소할까요?\n${target.name} · ${fmt(target.startISO)} ~ ${fmt(target.endISO)}`)) return;
+            state.reservations.splice(idx,1);
+            state.logs.unshift({ tsISO: nowISO(), name: state.me || '-', action: '예약 취소', meta: target });
+            save();
+            renderAll();
+          }
+        });
+      });
+    }
+
+    function renderLogs() {
+      const ul = $('#logList');
+      ul.innerHTML = '';
+      if (state.logs.length === 0) {
+        ul.innerHTML = '<li class="p-4 text-sm text-gray-500">기록이 없습니다.</li>';
+        return;
+      }
+      state.logs.slice(0,200).forEach(L => {
+        const li = document.createElement('li');
+        li.className = 'p-3 rounded-xl border bg-white shadow-sm';
+        li.innerHTML = `
+          <div class="text-xs text-gray-500">${fmt(L.tsISO)}</div>
+          <div class="mt-0.5 text-sm"><span class="font-medium">${L.name}</span> · ${L.action}
+            ${L.meta ? `<span class="text-gray-500">(${compactMeta(L.meta)})</span>` : ''}
+          </div>`;
+        ul.appendChild(li);
+      });
+    }
+
+    function compactMeta(meta) {
+      if (!meta) return '';
+      if (meta.startISO && meta.endISO) return `${fmt(meta.startISO)}~${fmt(meta.endISO)}`;
+      if (meta.sinceISO) return `시작 ${fmt(meta.sinceISO)}`;
+      if (meta.purpose) return meta.purpose;
+      return '';
+    }
+
+    function renderWhoAmI() {
+      $('#whoami').textContent = state.me ? `현재 선택: ${state.me}` : '사용자를 선택하세요.';
+    }
+
+    function renderMemberGrid() {
+      const grid = $('#memberGrid');
+      if (!grid) return;
+      grid.innerHTML = '';
+      MEMBERS.forEach(name => {
+        const isActive = state.me === name;
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = `w-full rounded-2xl px-4 py-3 font-bold text-sm transition-colors ${isActive ? 'bg-[#D9FF3F] text-black' : 'bg-black text-white hover:bg-gray-900'}`;
+        btn.textContent = name;
+        btn.addEventListener('click', () => setMe(name));
+        grid.appendChild(btn);
+      });
+    }
+
+    function renderAll() {
+      renderStatus();
+      renderReservations();
+      renderLogs();
+      renderWhoAmI();
+      renderMemberGrid();
+    }
+
+    // ====== Actions ======
+    function setMe(name) {
+      state.me = name || null;
+      save();
+      renderAll();
+    }
+
+    function useNow() {
+      if (!state.me) return alert('먼저 사용자(팀원)를 선택하세요.');
+      if (state.currentHolder && state.currentHolder.name !== state.me) {
+        return alert(`이미 '${state.currentHolder.name}'가 사용 중입니다.`);
+      }
+      if (!state.currentHolder) {
+        state.currentHolder = { name: state.me, sinceISO: nowISO() };
+        state.logs.unshift({ tsISO: nowISO(), name: state.me, action: '지금 사용 시작', meta: { sinceISO: state.currentHolder.sinceISO } });
+        save();
+        renderAll();
+      }
+    }
+
+    function returnNow() {
+      if (!state.currentHolder) return alert('현재 사용 중이 아닙니다.');
+      const holder = state.currentHolder;
+      state.currentHolder = null;
+      state.logs.unshift({ tsISO: nowISO(), name: holder.name, action: '반납', meta: holder });
+      save();
+      renderAll();
+    }
+
+    function addReservation(evt) {
+      evt.preventDefault();
+      if (!state.me) return alert('먼저 사용자(팀원)를 선택하세요.');
+      const s = $('#startAt').value;
+      const e = $('#endAt').value;
+      if (!s || !e) return alert('시작/종료 시간을 입력하세요.');
+      if (new Date(s) >= new Date(e)) return alert('종료 시간은 시작 시간보다 늦어야 합니다.');
+      if (hasOverlap(s, e)) return alert('다른 예약과 시간이 겹칩니다.');
+      const r = { id: uid(), name: state.me, startISO: new Date(s).toISOString(), endISO: new Date(e).toISOString(), purpose: $('#purpose').value.trim() };
+      state.reservations.push(r);
+      sortReservations();
+      state.logs.unshift({ tsISO: nowISO(), name: state.me, action: '예약 추가', meta: r });
+      save();
+      $('#resvForm').reset();
+      autoFillDateInputs();
+      renderAll();
+    }
+
+    function clearPastReservations() {
+      const now = Date.now();
+      const before = state.reservations.length;
+      state.reservations = state.reservations.filter(r => new Date(r.endISO).getTime() > now);
+      const removed = before - state.reservations.length;
+      if (removed > 0) state.logs.unshift({ tsISO: nowISO(), name: state.me || '-', action: `지난 예약 ${removed}건 정리` });
+      save();
+      renderAll();
+    }
+
+    function exportCSV() {
+      const rows = [
+        ['timestamp','name','action','meta']
+      ];
+      state.logs.forEach(L => {
+        rows.push([L.tsISO, L.name, L.action, JSON.stringify(L.meta||{})]);
+      });
+      const csv = rows.map(r => r.map(cell => `"${String(cell).replaceAll('"','""')}"`).join(',')).join('\n');
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = 'pcard_logs.csv'; a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    function hardReset() {
+      if (!confirm('모든 데이터(사용자 선택, 예약, 기록)를 초기화할까요?')) return;
+      localStorage.removeItem(LS_KEY);
+      location.reload();
+    }
+
+    function escapeHtml(str) {
+      return String(str).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#39;');
+    }
+
+    function autoFillDateInputs() {
+      // Suggest next hour blocks
+      const now = new Date();
+      const start = new Date(now.getTime() + 15*60*1000); // +15m
+      const end = new Date(start.getTime() + 60*60*1000); // +1h
+      const pad = n => String(n).padStart(2,'0');
+      const toLocal = (d) => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+      $('#startAt').value = toLocal(start);
+      $('#endAt').value = toLocal(end);
+    }
+
+    // ====== Init ======
+    async function init() {
+      await load();
+
+      // Bindings (grid buttons)
+      $('#useNowBtn').addEventListener('click', useNow);
+      $('#returnBtn').addEventListener('click', returnNow);
+      $('#resvForm').addEventListener('submit', addReservation);
+      $('#clearPastBtn').addEventListener('click', clearPastReservations);
+      $('#exportCsvBtn').addEventListener('click', exportCSV);
+      $('#resetBtn').addEventListener('click', hardReset);
+
+      autoFillDateInputs();
+      renderAll();
+    }
+
+    // ====== Self Tests (do not modify existing; only add) ======
+    function selfTest(){
+      try {
+        console.assert(Array.isArray(MEMBERS) && MEMBERS.length === 6, 'MEMBERS should have 6 items');
+        console.assert(['local','sheets','sheets_rest'].includes(BACKEND), 'BACKEND must be local|sheets|sheets_rest');
+        const grid = document.getElementById('memberGrid');
+        setTimeout(()=>{
+          console.assert(grid && grid.children.length === 6, 'memberGrid should render 6 buttons');
+          const firstBtn = grid && grid.querySelector('button');
+          if (firstBtn) {
+            const prev = state.me;
+            firstBtn.click();
+            console.assert(state.me === firstBtn.textContent, 'Click should set selected member');
+            const who = document.getElementById('whoami');
+            console.assert(who && who.textContent.includes(state.me), 'whoami should reflect selected member');
+            // restore
+            state.me = prev; save(); renderAll();
+          }
+        }, 0);
+        // NEW tests
+        // 1) hasOverlap: overlapping intervals should return true
+        (function(){
+          const a = new Date();
+          const b = new Date(a.getTime()+60*60*1000);
+          const c = new Date(a.getTime()+30*60*1000);
+          const d = new Date(b.getTime()+30*60*1000);
+          const r1 = { id: 't1', name: '결', startISO: a.toISOString(), endISO: b.toISOString(), purpose: '' };
+          state.reservations.push(r1);
+          console.assert(hasOverlap(c.toISOString(), d.toISOString()) === true, 'hasOverlap should detect overlap');
+          state.reservations = state.reservations.filter(x=>x.id!=='t1');
+        })();
+        // 2) CSV export should create a blob URL (smoke)
+        (function(){
+          const before = state.logs.length;
+          state.logs.unshift({ tsISO: nowISO(), name: '테스트', action: 'export test', meta: {} });
+          exportCSV();
+          // no assert for download (browser), but function should not throw
+          state.logs = state.logs.slice(1);
+        })();
+      } catch(e) { console.warn('SelfTest error', e); }
+    }
+
+    selfTest();
+    document.addEventListener('DOMContentLoaded', init);
+  </script>
+</body>
+</html>
