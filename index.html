@@ -109,7 +109,7 @@
 
     // If you want GitHub Pages + Google Sheets, put your Apps Script WebApp URL here
     // e.g. https://script.google.com/macros/s/XXXX/exec
-    const API_URL = 'https://script.google.com/macros/s/AKfycby_z7QoMnkFnn1DY1dTt6yiSHwkAG-X9Cs9PlDPXie1Gz1c2n5PFoFste0ATxUtg1k/exec';
+    const API_URL = 'PUT_YOUR_APPS_SCRIPT_WEB_APP_EXEC_URL';
 
     const BACKEND = (typeof google !== 'undefined' && google.script && google.script.run)
       ? 'sheets'
@@ -484,13 +484,7 @@
           console.assert(hasOverlap(c.toISOString(), d.toISOString()) === true, 'hasOverlap should detect overlap');
           state.reservations = state.reservations.filter(x=>x.id!=='t1');
         })();
-        // 2) CSV export should create a blob URL (smoke)
-        (function(){
-          const before = state.logs.length;
-          state.logs.unshift({ tsISO: nowISO(), name: '테스트', action: 'export test', meta: {} });
-          exportCSV();
-          // no assert for download (browser), but function should not throw
-          state.logs = state.logs.slice(1);
+        // 2) CSV export smoke test removed to prevent auto-download on load
         })();
       } catch(e) { console.warn('SelfTest error', e); }
     }
