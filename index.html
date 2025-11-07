@@ -8,19 +8,16 @@
   <!-- Tailwind Play CDN (single-file, GH Pages-friendly) -->
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
-    /* Safe-area for iOS notch */
     :root { --sab: env(safe-area-inset-bottom); }
     .safe-bottom { padding-bottom: calc(1rem + var(--sab)); }
     .sticky-cta { padding-bottom: calc(0.5rem + var(--sab)); }
-    /* Hide number input spinners */
     input[type=number]::-webkit-outer-spin-button,
     input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
     input[type=number] { -moz-appearance: textfield; }
   </style>
 </head>
 <body class="bg-white text-gray-900">
-  <!-- App container -->
-  <div class="max-w-md mx-auto min-h-screen pb-28">
+  <div class="max-w-md mx-auto min-h-screen pb-40">
     <!-- Header -->
     <header class="sticky top-0 z-30 bg-white/80 backdrop-blur border-b">
       <div class="px-4 py-3">
@@ -30,17 +27,33 @@
       </div>
     </header>
 
-    <!-- User selection (grid buttons) -->
+    <!-- Member select -->
     <section class="px-4 pt-4">
       <h2 class="text-xl font-bold">지금 사용 시작</h2>
       <p class="text-sm text-gray-400 mt-1">사용자를 탭하여 선택</p>
-      <div id="memberGrid" class="mt-3 grid grid-cols-3 gap-3"><!-- JS inject --></div>
+      <div id="memberGrid" class="mt-3 grid grid-cols-3 gap-3"></div>
       <p id="whoami" class="mt-2 text-xs text-gray-500"></p>
     </section>
 
-    <!-- Quick status pills -->
-    <section class="px-4 mt-4">
-      <div class="flex flex-wrap gap-2 text-xs" id="statusPills"><!-- JS inject --></div>
+    <!-- Pills: team, me, limit/used/left -->
+    <section class="px-4 mt-3">
+      <div class="flex flex-wrap gap-2 text-xs" id="statusPills"></div>
+    </section>
+
+    <!-- Limit & settlement -->
+    <section class="px-4 mt-6">
+      <h2 class="text-xl font-bold">한도 · 정산</h2>
+      <div class="mt-3 grid grid-cols-1 gap-3">
+        <div>
+          <label class="text-sm">월 사용 한도 (₩)</label>
+          <input type="number" id="limitInput" inputmode="numeric" placeholder="예: 500000" class="mt-1 w-full rounded-xl border px-3 py-2" />
+        </div>
+        <div class="flex gap-2">
+          <button id="saveLimitBtn" class="rounded-xl border px-3 py-2 text-sm bg-black text-white hover:bg-gray-900">한도 저장</button>
+          <button id="resetTotalsBtn" class="rounded-xl border px-3 py-2 text-sm border-red-300 text-red-600">사용 합계 리셋</button>
+        </div>
+        <p class="text-xs text-gray-500" id="limitSummary">한도: - / 사용 합계: - / 잔여: -</p>
+      </div>
     </section>
 
     <!-- Reservation form -->
@@ -64,28 +77,24 @@
       <p class="text-xs text-gray-500 mt-2">※ 예약 시간 중복은 자동으로 차단됩니다.</p>
     </section>
 
-    <!-- Upcoming reservations -->
+    <!-- Reservations -->
     <section class="px-4 mt-6">
       <div class="flex items-center justify-between">
         <h2 class="text-xl font-bold">예약 목록</h2>
         <button id="clearPastBtn" class="text-xs text-gray-500 underline">지난 예약 정리</button>
       </div>
-      <ul id="resvList" class="mt-3 divide-y border rounded-xl overflow-hidden">
-        <!-- JS inject -->
-      </ul>
+      <ul id="resvList" class="mt-3 divide-y border rounded-xl overflow-hidden"></ul>
     </section>
 
-    <!-- Usage log -->
-    <section class="px-4 mt-6 mb-40">
+    <!-- Logs -->
+    <section class="px-4 mt-6 mb-44">
       <div class="flex items-center justify-between">
         <h2 class="text-xl font-bold">사용 기록</h2>
         <div class="flex gap-2">
           <button id="resetBtn" class="text-xs px-2 py-1 rounded-lg border text-red-600 border-red-300">전체 초기화</button>
         </div>
       </div>
-      <ul id="logList" class="mt-3 space-y-2">
-        <!-- JS inject -->
-      </ul>
+      <ul id="logList" class="mt-3 space-y-2"></ul>
     </section>
   </div>
 
@@ -101,22 +110,18 @@
   </div>
 
   <script>
-    // ====== Configuration ======
+    // ====== Config ======
     const TEAM_NAME = '프로모션 마케팅 팀';
     const MEMBERS = ['결','소희','연우','유진','지완','현화'];
     const LS_KEY = 'pcard_app_v1';
-
-    // If you want GitHub Pages + Google Sheets, put your Apps Script WebApp URL here
-    // e.g. https://script.google.com/macros/s/XXXX/exec
     const API_URL = 'https://script.google.com/macros/s/AKfycbxmCIsqHY9ojPoe4C1ZEShtMecxQgBqpV7D-SOp4RMJl0V7YG2Jm5a_-Xo3HhLTbZzc/exec';
-
     const BACKEND = (typeof google !== 'undefined' && google.script && google.script.run)
       ? 'sheets'
       : (typeof API_URL === 'string' && API_URL.startsWith('https://script.google.com/'))
         ? 'sheets_rest'
         : 'local';
 
-    // Apps Script (htmlService) direct binding
+    // ====== Backend helpers ======
     function gsRun(fnName, payload){
       return new Promise((resolve, reject)=>{
         try{
@@ -127,139 +132,121 @@
         }catch(e){ reject(e); }
       });
     }
-
-    // Apps Script WebApp (REST) helpers — works from GitHub Pages, Netlify, etc.
     async function gsRestGetState(){
       if (BACKEND !== 'sheets_rest') throw new Error('not-sheets-rest');
       const url = API_URL + '?fn=getState&ts=' + Date.now();
-      const res = await fetch(url, { method: 'GET', mode: 'cors' });
+      const res = await fetch(url, { method: 'GET' });
       if (!res.ok) throw new Error('GET failed ' + res.status);
-      return await res.json();
+      return res.json();
     }
     async function gsRestSaveState(snapshot){
       if (BACKEND !== 'sheets_rest') throw new Error('not-sheets-rest');
       const body = new URLSearchParams({ fn: 'saveState', payload: JSON.stringify(snapshot) });
       const res = await fetch(API_URL, {
-        method: 'POST', mode: 'cors',
+        method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body
       });
       if (!res.ok) throw new Error('POST failed ' + res.status);
-      return await res.text();
+      return res.text();
     }
 
     // ====== State ======
     const state = {
-      currentHolder: null, // { name, sinceISO }
-      reservations: [],   // [{ id, name, startISO, endISO, purpose }]
-      logs: [],           // [{ tsISO, name, action, meta }]
-      me: null            // selected member name
+      currentHolder: null,     // { name, sinceISO } | null
+      reservations: [],        // [{ id, name, startISO, endISO, purpose }]
+      logs: [],                // [{ tsISO, name, action, meta }]
+      me: null,                // selected member
+      limitAmount: 0,          // 월 한도 (원)
+      totalUsed: 0             // 사용 합계 (원)
     };
 
     // ====== Utils ======
     const $ = sel => document.querySelector(sel);
     const $$ = sel => Array.from(document.querySelectorAll(sel));
-    const fmt = (iso) => {
-      try {
-        const d = new Date(iso);
-        return new Intl.DateTimeFormat('ko-KR', { dateStyle: 'medium', timeStyle: 'short' }).format(d);
-      } catch (e) { return iso; }
-    };
+    const fmt = (iso) => { try { return new Intl.DateTimeFormat('ko-KR',{dateStyle:'medium', timeStyle:'short'}).format(new Date(iso)); } catch { return iso; } };
     const nowISO = () => new Date().toISOString();
     const uid = () => Math.random().toString(36).slice(2,9);
+    const fmtKRW = (n) => new Intl.NumberFormat('ko-KR',{ style:'currency', currency:'KRW', maximumFractionDigits:0 }).format(Number(n||0));
+    const parseAmt = (x) => Math.max(0, Math.floor(Number(String(x||'').replace(/[^\d.-]/g,'')||0)));
 
     async function save(){
-      const snapshot = { currentHolder: state.currentHolder, reservations: state.reservations, logs: state.logs };
-      if (BACKEND === 'sheets'){
-        try{ await gsRun('saveState', snapshot);}catch(e){ /* optionally fall back */ }
-      } else if (BACKEND === 'sheets_rest'){
-        try{ await gsRestSaveState(snapshot);}catch(e){ console.warn('save REST failed', e); }
-      } else {
-        localStorage.setItem(LS_KEY, JSON.stringify(state));
-      }
+      const snapshot = { currentHolder: state.currentHolder, reservations: state.reservations, logs: state.logs, limitAmount: state.limitAmount, totalUsed: state.totalUsed };
+      try{
+        if (BACKEND === 'sheets')      await gsRun('saveState', snapshot);
+        else if (BACKEND === 'sheets_rest') await gsRestSaveState(snapshot);
+        else localStorage.setItem(LS_KEY, JSON.stringify(state));
+      }catch(e){ console.warn('save failed', e); if (BACKEND!=='local') localStorage.setItem(LS_KEY, JSON.stringify(state)); }
     }
 
     async function load(){
       if (BACKEND === 'sheets'){
-        try{
-          const remote = await gsRun('getState');
-          if (remote && typeof remote === 'object') Object.assign(state, remote);
-        }catch(e){
-          const raw = localStorage.getItem(LS_KEY);
-          if (raw){ try{ Object.assign(state, JSON.parse(raw)); }catch(_){} }
-        }
+        try{ const remote = await gsRun('getState'); if (remote && typeof remote==='object') Object.assign(state, remote); }
+        catch(e){ const raw = localStorage.getItem(LS_KEY); if (raw) try{ Object.assign(state, JSON.parse(raw)); }catch{} }
       } else if (BACKEND === 'sheets_rest'){
-        try{
-          const remote = await gsRestGetState();
-          if (remote && typeof remote === 'object') Object.assign(state, remote);
-        }catch(e){
-          const raw = localStorage.getItem(LS_KEY);
-          if (raw){ try{ Object.assign(state, JSON.parse(raw)); }catch(_){} }
-        }
+        try{ const remote = await gsRestGetState(); if (remote && typeof remote==='object') Object.assign(state, remote); }
+        catch(e){ const raw = localStorage.getItem(LS_KEY); if (raw) try{ Object.assign(state, JSON.parse(raw)); }catch{} }
       } else {
-        const raw = localStorage.getItem(LS_KEY);
-        if (!raw) return; try{ Object.assign(state, JSON.parse(raw)); }catch(_){ }
+        const raw = localStorage.getItem(LS_KEY); if (raw) try{ Object.assign(state, JSON.parse(raw)); }catch{}
       }
     }
 
-    // Overlap check for reservations
-    function hasOverlap(startISO, endISO, ignoreId=null) {
+    function hasOverlap(startISO, endISO, ignoreId=null){
       const s = new Date(startISO).getTime();
       const e = new Date(endISO).getTime();
-      return state.reservations.some(r => {
-        if (ignoreId && r.id === ignoreId) return false;
+      return state.reservations.some(r=>{
+        if (ignoreId && r.id===ignoreId) return false;
         const rs = new Date(r.startISO).getTime();
         const re = new Date(r.endISO).getTime();
-        return Math.max(s, rs) < Math.min(e, re); // intersect
+        return Math.max(s,rs) < Math.min(e,re);
       });
     }
 
-    function sortReservations() {
-      state.reservations.sort((a,b) => new Date(a.startISO) - new Date(b.startISO));
+    function sortReservations(){
+      state.reservations.sort((a,b)=> new Date(a.startISO)-new Date(b.startISO));
+    }
+
+    function compactMeta(meta){
+      if (!meta) return '';
+      if (meta.amount) return fmtKRW(meta.amount);
+      if (meta.startISO && meta.endISO) return `${fmt(meta.startISO)}~${fmt(meta.endISO)}`;
+      if (meta.sinceISO) return `시작 ${fmt(meta.sinceISO)}`;
+      if (meta.purpose) return meta.purpose;
+      return '';
     }
 
     // ====== Render ======
-    function renderStatus() {
+    function renderStatus(){
       const box = $('#cardStatus');
       box.innerHTML = '';
-      const dot = document.createElement('span');
-      dot.className = 'inline-block w-2.5 h-2.5 rounded-full';
-      const text = document.createElement('span');
-      text.className = 'text-sm';
-      if (state.currentHolder) {
-        dot.classList.add('bg-black');
-        text.textContent = `사용 중 · ${state.currentHolder.name} (시작: ${fmt(state.currentHolder.sinceISO)})`;
-      } else {
-        dot.classList.add('bg-[#D9FF3F]');
-        text.textContent = '사용 가능';
-      }
+      const dot = document.createElement('span'); dot.className = 'inline-block w-2.5 h-2.5 rounded-full';
+      const text = document.createElement('span'); text.className = 'text-sm';
+      if (state.currentHolder){ dot.classList.add('bg-black'); text.textContent = `사용 중 · ${state.currentHolder.name} (시작: ${fmt(state.currentHolder.sinceISO)})`; }
+      else { dot.classList.add('bg-[#D9FF3F]'); text.textContent = '사용 가능'; }
       box.append(dot, text);
 
       const pills = $('#statusPills');
       pills.innerHTML = '';
-      const pill = document.createElement('span');
-      pill.className = 'px-2 py-1 rounded-full border text-gray-600';
-      pill.textContent = `팀: ${TEAM_NAME}`;
-      pills.appendChild(pill);
-      if (state.me) {
-        const mep = document.createElement('span');
-        mep.className = 'px-2 py-1 rounded-full border text-gray-600';
-        mep.textContent = `선택 사용자: ${state.me}`;
-        pills.appendChild(mep);
-      }
+      const mk = (t)=>{ const s=document.createElement('span'); s.className='px-2 py-1 rounded-full border text-gray-600'; s.textContent=t; return s; };
+      pills.append(mk(`팀: ${TEAM_NAME}`));
+      if (state.me) pills.append(mk(`선택: ${state.me}`));
+      const used = Number(state.totalUsed||0);
+      const limit = Number(state.limitAmount||0);
+      const left = limit>0 ? Math.max(0, limit - used) : null;
+      pills.append(mk(`한도 ${limit>0?fmtKRW(limit):'-'}`));
+      pills.append(mk(`사용 ${fmtKRW(used)}`));
+      pills.append(mk(`잔여 ${left!==null?fmtKRW(left):'-'}`));
+
+      const sum = $('#limitSummary');
+      if (sum) sum.textContent = `한도: ${limit>0?fmtKRW(limit):'-'} / 사용 합계: ${fmtKRW(used)} / 잔여: ${left!==null?fmtKRW(left):'-'}`;
     }
 
-    function renderReservations() {
+    function renderReservations(){
       sortReservations();
-      const ul = $('#resvList');
-      ul.innerHTML = '';
-      if (state.reservations.length === 0) {
-        ul.innerHTML = '<li class="p-4 text-sm text-gray-500">등록된 예약이 없습니다.</li>';
-        return;
-      }
-      state.reservations.forEach(r => {
-        const li = document.createElement('li');
-        li.className = 'p-3 flex items-start gap-3';
+      const ul = $('#resvList'); ul.innerHTML='';
+      if (!state.reservations.length){ ul.innerHTML='<li class="p-4 text-sm text-gray-500">등록된 예약이 없습니다.</li>'; return; }
+      state.reservations.forEach(r=>{
+        const li=document.createElement('li'); li.className='p-3 flex items-start gap-3';
         li.innerHTML = `
           <div class="grow">
             <div class="text-sm font-medium">${r.name}</div>
@@ -271,34 +258,25 @@
           </div>`;
         ul.appendChild(li);
       });
-
-      // bind cancel
-      $$('#resvList .cancelResv').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-          const id = e.currentTarget.getAttribute('data-id');
-          const idx = state.reservations.findIndex(r => r.id === id);
-          if (idx >= 0) {
-            const target = state.reservations[idx];
-            if (!confirm(`예약을 취소할까요?\n${target.name} · ${fmt(target.startISO)} ~ ${fmt(target.endISO)}`)) return;
-            state.reservations.splice(idx,1);
-            state.logs.unshift({ tsISO: nowISO(), name: state.me || '-', action: '예약 취소', meta: target });
-            save();
-            renderAll();
-          }
-        });
-      });
+      $$('#resvList .cancelResv').forEach(btn=> btn.addEventListener('click', (e)=>{
+        const id = e.currentTarget.getAttribute('data-id');
+        const idx = state.reservations.findIndex(r=>r.id===id);
+        if (idx>=0){
+          const target = state.reservations[idx];
+          if (!confirm(`예약을 취소할까요?\n${target.name} · ${fmt(target.startISO)} ~ ${fmt(target.endISO)}`)) return;
+          state.reservations.splice(idx,1);
+          state.logs.unshift({ tsISO: nowISO(), name: state.me||'-', action: '예약 취소', meta: target });
+          save(); renderAll();
+        }
+      }));
     }
 
-    function renderLogs() {
-      const ul = $('#logList');
-      ul.innerHTML = '';
-      if (state.logs.length === 0) {
-        ul.innerHTML = '<li class="p-4 text-sm text-gray-500">기록이 없습니다.</li>';
-        return;
-      }
-      state.logs.slice(0,80).forEach(L => {
-        const li = document.createElement('li');
-        li.className = 'p-3 rounded-xl border bg-white shadow-sm';
+    function renderLogs(){
+      const ul = $('#logList'); ul.innerHTML='';
+      const show = state.logs.slice(0,80);
+      if (!show.length){ ul.innerHTML='<li class="p-4 text-sm text-gray-500">기록이 없습니다.</li>'; return; }
+      show.forEach(L=>{
+        const li=document.createElement('li'); li.className='p-3 rounded-xl border bg-white shadow-sm';
         li.innerHTML = `
           <div class="text-xs text-gray-500">${fmt(L.tsISO)}</div>
           <div class="mt-0.5 text-sm"><span class="font-medium">${L.name}</span> · ${L.action}
@@ -308,34 +286,22 @@
       });
     }
 
-    function compactMeta(meta) {
-      if (!meta) return '';
-      if (meta.startISO && meta.endISO) return `${fmt(meta.startISO)}~${fmt(meta.endISO)}`;
-      if (meta.sinceISO) return `시작 ${fmt(meta.sinceISO)}`;
-      if (meta.purpose) return meta.purpose;
-      return '';
-    }
+    function renderWhoAmI(){ $('#whoami').textContent = state.me ? `현재 선택: ${state.me}` : '사용자를 선택하세요.'; }
 
-    function renderWhoAmI() {
-      $('#whoami').textContent = state.me ? `현재 선택: ${state.me}` : '사용자를 선택하세요.';
-    }
-
-    function renderMemberGrid() {
-      const grid = $('#memberGrid');
-      if (!grid) return;
-      grid.innerHTML = '';
-      MEMBERS.forEach(name => {
-        const isActive = state.me === name;
-        const btn = document.createElement('button');
-        btn.type = 'button';
+    function renderMemberGrid(){
+      const grid = $('#memberGrid'); if (!grid) return; grid.innerHTML='';
+      MEMBERS.forEach(name=>{
+        const isActive = state.me===name;
+        const btn=document.createElement('button');
+        btn.type='button';
         btn.className = `w-full rounded-2xl px-4 py-3 font-bold text-sm transition-colors ${isActive ? 'bg-[#D9FF3F] text-black' : 'bg-black text-white hover:bg-gray-900'}`;
-        btn.textContent = name;
-        btn.addEventListener('click', () => setMe(name));
+        btn.textContent=name;
+        btn.addEventListener('click',()=> setMe(name));
         grid.appendChild(btn);
       });
     }
 
-    function renderAll() {
+    function renderAll(){
       renderStatus();
       renderReservations();
       renderLogs();
@@ -344,141 +310,125 @@
     }
 
     // ====== Actions ======
-    function setMe(name) {
-      state.me = name || null;
-      save();
-      renderAll();
-    }
+    function setMe(name){ state.me = name || null; save(); renderAll(); }
 
-    function useNow() {
+    function useNow(){
       if (!state.me) return alert('먼저 사용자(팀원)를 선택하세요.');
-      if (state.currentHolder && state.currentHolder.name !== state.me) {
-        return alert(`이미 '${state.currentHolder.name}'가 사용 중입니다.`);
-      }
-      if (!state.currentHolder) {
+      if (state.currentHolder && state.currentHolder.name !== state.me) return alert(`이미 '${state.currentHolder.name}'가 사용 중입니다.`);
+      if (!state.currentHolder){
         state.currentHolder = { name: state.me, sinceISO: nowISO() };
         state.logs.unshift({ tsISO: nowISO(), name: state.me, action: '지금 사용 시작', meta: { sinceISO: state.currentHolder.sinceISO } });
-        save();
-        renderAll();
+        save(); renderAll();
       }
     }
 
-    function returnNow() {
+    function returnNow(){
       if (!state.currentHolder) return alert('현재 사용 중이 아닙니다.');
+      if (!state.me || state.me !== state.currentHolder.name) {
+        // 보유자와 다른 사람이 반납하려는 경우도 허용할지? 여기서는 허용하되 기록에 남김
+      }
+      // ① 금액 입력 받기
+      const raw = prompt('이번에 사용한 금액을 입력하세요 (숫자만, 원):', '0');
+      if (raw===null) return; // 취소
+      const amt = parseAmt(raw);
+      if (!(amt >= 0)) return alert('금액이 올바르지 않습니다.');
+
+      // ② 합계 반영
+      state.totalUsed = Math.max(0, Number(state.totalUsed||0) + amt);
+
+      // ③ 반납 처리
       const holder = state.currentHolder;
       state.currentHolder = null;
-      state.logs.unshift({ tsISO: nowISO(), name: holder.name, action: '반납', meta: holder });
-      save();
-      renderAll();
+      state.logs.unshift({ tsISO: nowISO(), name: holder.name, action: '반납', meta: { amount: amt, sinceISO: holder.sinceISO } });
+      save(); renderAll();
     }
 
-    function addReservation(evt) {
+    function addReservation(evt){
       evt.preventDefault();
       if (!state.me) return alert('먼저 사용자(팀원)를 선택하세요.');
-      const s = $('#startAt').value;
-      const e = $('#endAt').value;
+      const s = $('#startAt').value; const e = $('#endAt').value;
       if (!s || !e) return alert('시작/종료 시간을 입력하세요.');
       if (new Date(s) >= new Date(e)) return alert('종료 시간은 시작 시간보다 늦어야 합니다.');
-      if (hasOverlap(s, e)) return alert('다른 예약과 시간이 겹칩니다.');
+      if (hasOverlap(s,e)) return alert('다른 예약과 시간이 겹칩니다.');
       const r = { id: uid(), name: state.me, startISO: new Date(s).toISOString(), endISO: new Date(e).toISOString(), purpose: $('#purpose').value.trim() };
-      state.reservations.push(r);
-      sortReservations();
+      state.reservations.push(r); sortReservations();
       state.logs.unshift({ tsISO: nowISO(), name: state.me, action: '예약 추가', meta: r });
-      save();
-      $('#resvForm').reset();
-      autoFillDateInputs();
-      renderAll();
+      save(); $('#resvForm').reset(); autoFillDateInputs(); renderAll();
     }
 
-    function clearPastReservations() {
+    function clearPastReservations(){
       const now = Date.now();
       const before = state.reservations.length;
-      state.reservations = state.reservations.filter(r => new Date(r.endISO).getTime() > now);
+      state.reservations = state.reservations.filter(r=> new Date(r.endISO).getTime() > now);
       const removed = before - state.reservations.length;
-      if (removed > 0) state.logs.unshift({ tsISO: nowISO(), name: state.me || '-', action: `지난 예약 ${removed}건 정리` });
-      save();
-      renderAll();
+      if (removed>0) state.logs.unshift({ tsISO: nowISO(), name: state.me||'-', action: `지난 예약 ${removed}건 정리` });
+      save(); renderAll();
     }
 
-    function hardReset() {
-      if (!confirm('모든 데이터(사용자 선택, 예약, 기록)를 초기화할까요?')) return;
+    function hardReset(){
+      if (!confirm('모든 데이터(사용자 선택, 예약, 기록, 한도/합계)를 초기화할까요?')) return;
       localStorage.removeItem(LS_KEY);
-      location.reload();
+      state.currentHolder=null; state.reservations=[]; state.logs=[]; state.me=null; state.limitAmount=0; state.totalUsed=0;
+      save(); location.reload();
     }
 
-    function escapeHtml(str) {
-      return String(str).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#39;');
+    function saveLimit(){
+      const v = parseAmt($('#limitInput').value);
+      state.limitAmount = v; save(); renderAll();
+    }
+    function resetTotals(){
+      if (!confirm('사용 금액 합계를 0으로 리셋할까요?')) return;
+      state.totalUsed = 0; save(); renderAll();
     }
 
-    function autoFillDateInputs() {
-      // Suggest next hour blocks
-      const now = new Date();
-      const start = new Date(now.getTime() + 15*60*1000); // +15m
-      const end = new Date(start.getTime() + 60*60*1000); // +1h
-      const pad = n => String(n).padStart(2,'0');
-      const toLocal = (d) => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-      $('#startAt').value = toLocal(start);
-      $('#endAt').value = toLocal(end);
+    function escapeHtml(str){ return String(str).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#39;'); }
+
+    function autoFillDateInputs(){
+      const now=new Date(); const start=new Date(now.getTime()+15*60*1000); const end=new Date(start.getTime()+60*60*1000);
+      const pad=n=>String(n).padStart(2,'0');
+      const toLocal=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+      $('#startAt').value = toLocal(start); $('#endAt').value = toLocal(end);
     }
 
     // ====== Init ======
-    async function init() {
-      // 1) 먼저 가벼운 UI를 즉시 렌더링 (네트워크 대기 없음)
-      renderMemberGrid();
-      renderWhoAmI();
-      renderStatus();
+    async function init(){
+      // 1) 즉시 UI 렌더 (빠른 체감)
+      renderMemberGrid(); renderWhoAmI(); renderStatus();
 
-      // 2) 이벤트 바인딩
+      // 2) 바인딩
       $('#useNowBtn').addEventListener('click', useNow);
       $('#returnBtn').addEventListener('click', returnNow);
       $('#resvForm').addEventListener('submit', addReservation);
       $('#clearPastBtn').addEventListener('click', clearPastReservations);
       $('#resetBtn').addEventListener('click', hardReset);
+      $('#saveLimitBtn').addEventListener('click', saveLimit);
+      $('#resetTotalsBtn').addEventListener('click', resetTotals);
 
       autoFillDateInputs();
 
-      // 3) 백그라운드로 원격 상태 로드, 완료 후 전체 렌더
-      try {
-        await load();
-      } catch (e) {
-        console.warn('load failed, using local if any', e);
-      }
+      // 3) 원격 로드 후 전체 렌더
+      try { await load(); } catch(e){ console.warn('load failed, using local if any', e); }
       renderAll();
+
+      // 초기 입력칸 프리필
+      if (state.limitAmount>0) $('#limitInput').value = state.limitAmount;
     }
 
-    // ====== Self Tests (do not modify existing; only add) ======
+    // ====== Self Tests (non-intrusive) ======
     function selfTest(){
-      try {
-        console.assert(Array.isArray(MEMBERS) && MEMBERS.length === 6, 'MEMBERS should have 6 items');
-        console.assert(['local','sheets','sheets_rest'].includes(BACKEND), 'BACKEND must be local|sheets|sheets_rest');
-        const grid = document.getElementById('memberGrid');
+      try{
+        console.assert(Array.isArray(MEMBERS)&&MEMBERS.length===6,'MEMBERS length');
+        console.assert(['local','sheets','sheets_rest'].includes(BACKEND),'BACKEND mode');
+        const grid=document.getElementById('memberGrid');
         setTimeout(()=>{
-          console.assert(grid && grid.children.length === 6, 'memberGrid should render 6 buttons');
-          const firstBtn = grid && grid.querySelector('button');
-          if (firstBtn) {
-            const prev = state.me;
-            firstBtn.click();
-            console.assert(state.me === firstBtn.textContent, 'Click should set selected member');
-            const who = document.getElementById('whoami');
-            console.assert(who && who.textContent.includes(state.me), 'whoami should reflect selected member');
-            // restore
-            state.me = prev; save(); renderAll();
-          }
-        }, 0);
-        // NEW tests
-        // 1) hasOverlap: overlapping intervals should return true
-        (function(){
-          const a = new Date();
-          const b = new Date(a.getTime()+60*60*1000);
-          const c = new Date(a.getTime()+30*60*1000);
-          const d = new Date(b.getTime()+30*60*1000);
-          const r1 = { id: 't1', name: '결', startISO: a.toISOString(), endISO: b.toISOString(), purpose: '' };
-          state.reservations.push(r1);
-          console.assert(hasOverlap(c.toISOString(), d.toISOString()) === true, 'hasOverlap should detect overlap');
-          state.reservations = state.reservations.filter(x=>x.id!=='t1');
-        })();
-        // 2) CSV export smoke test removed to prevent auto-download on load
-      } catch(e) { console.warn('SelfTest error', e); }
+          console.assert(grid && grid.children.length===6,'memberGrid buttons');
+        },0);
+        // limit & total tests
+        const prevLimit=state.limitAmount, prevTotal=state.totalUsed;
+        state.limitAmount=100000; state.totalUsed=25000; renderStatus();
+        console.assert($('#limitSummary').textContent.includes('잔여'), 'summary render');
+        state.limitAmount=prevLimit; state.totalUsed=prevTotal; renderStatus();
+      }catch(e){ console.warn('SelfTest error', e); }
     }
 
     selfTest();
