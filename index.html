@@ -14,6 +14,13 @@
     input[type=number]::-webkit-outer-spin-button,
     input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
     input[type=number] { -moz-appearance: textfield; }
+    /* Make limit/used/left more prominent */
+    #statusPills{ gap: .5rem; }
+    #statusPills span{ background:#f9fafb; border-color:#e5e7eb; font-weight:600; padding:.35rem .6rem; }
+    /* Order in pills: 팀, 선택, 한도(4), 사용(5), 잔여(6) — color-code key ones */
+    #statusPills span:nth-child(4){ background:#fff; color:#111827; border-color:#111827; }
+    #statusPills span:nth-child(5){ background:#111827; color:#fff; border-color:#111827; }
+    #statusPills span:nth-child(6){ background:#D9FF3F; color:#000; border-color:#C8F536; }
   </style>
 </head>
 <body class="bg-white text-gray-900">
@@ -38,22 +45,6 @@
     <!-- Pills: team, me, limit/used/left -->
     <section class="px-4 mt-3">
       <div class="flex flex-wrap gap-2 text-xs" id="statusPills"></div>
-    </section>
-
-    <!-- Limit & settlement -->
-    <section class="px-4 mt-6">
-      <h2 class="text-xl font-bold">한도 · 정산</h2>
-      <div class="mt-3 grid grid-cols-1 gap-3">
-        <div>
-          <label class="text-sm">월 사용 한도 (₩)</label>
-          <input type="number" id="limitInput" inputmode="numeric" placeholder="예: 500000" class="mt-1 w-full rounded-xl border px-3 py-2" />
-        </div>
-        <div class="flex gap-2">
-          <button id="saveLimitBtn" class="rounded-xl border px-3 py-2 text-sm bg-black text-white hover:bg-gray-900">한도 저장</button>
-          <button id="resetTotalsBtn" class="rounded-xl border px-3 py-2 text-sm border-red-300 text-red-600">사용 합계 리셋</button>
-        </div>
-        <p class="text-xs text-gray-500" id="limitSummary">한도: - / 사용 합계: - / 잔여: -</p>
-      </div>
     </section>
 
     <!-- Reservation form -->
@@ -95,6 +86,21 @@
         </div>
       </div>
       <ul id="logList" class="mt-3 space-y-2"></ul>
+    </section>
+    <!-- Limit & settlement (moved to bottom) -->
+    <section class="px-4 mt-6">
+      <h2 class="text-xl font-bold">한도 · 정산</h2>
+      <div class="mt-3 grid grid-cols-1 gap-3">
+        <div>
+          <label class="text-sm">월 사용 한도 (₩)</label>
+          <input type="number" id="limitInput" inputmode="numeric" placeholder="예: 500000" class="mt-1 w-full rounded-xl border px-3 py-2" />
+        </div>
+        <div class="flex gap-2">
+          <button id="saveLimitBtn" class="rounded-xl border px-3 py-2 text-sm bg-black text-white hover:bg-gray-900">한도 저장</button>
+          <button id="resetTotalsBtn" class="rounded-xl border px-3 py-2 text-sm border-red-300 text-red-600">사용 합계 리셋</button>
+        </div>
+        <p class="text-xs text-gray-500" id="limitSummary">한도: - / 사용 합계: - / 잔여: -</p>
+      </div>
     </section>
   </div>
 
@@ -304,9 +310,22 @@
     function renderAll(){
       renderStatus();
       renderReservations();
-      renderLogs();
+      renderLogsDeferred();
       renderWhoAmI();
       renderMemberGrid();
+    }
+
+    let logsTimer=null;
+    function renderLogsDeferred(delay=250){
+      clearTimeout(logsTimer);
+      const ul = document.querySelector('#logList');
+      if (ul && !ul.dataset.ready) {
+        ul.innerHTML = '<li class="p-4 text-sm text-gray-400">기록 불러오는 중…</li>';
+      }
+      logsTimer = setTimeout(()=>{
+        renderLogs();
+        if (ul) ul.dataset.ready = '1';
+      }, delay);
     }
 
     // ====== Actions ======
