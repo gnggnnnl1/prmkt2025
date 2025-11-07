@@ -111,12 +111,13 @@
         <button id="useNowBtn" class="rounded-2xl py-3 font-semibold bg-[#D9FF3F] text-black hover:bg-[#C8F536] transition-colors">사용 시작</button>
         <button id="returnBtn" class="rounded-2xl py-3 font-semibold bg-black text-white hover:bg-gray-900 transition-colors">반납 완료</button>
       </div>
-      <div class="text-[10px] text-gray-500 mt-2 mb-3 text-center">하단 빠른 동작 · 현재 선택 사용자로 처리</div>
+      
     </div>
   </div>
 
   <script>
     // ====== Config ======
+    const TEAM_NAME = '프로모션 마케팅 팀';
     const MEMBERS = ['결','소희','연우','유진','지완','현화'];
     const LS_KEY = 'pcard_app_v1';
     const API_URL = 'https://script.google.com/macros/s/AKfycbyX9dTw9kaHxaOu-0hAHfWzkAd3Cmp4lzXTHnOgJmN0109XJObVPgS0sw5333TmzOk9/exec';
@@ -233,7 +234,7 @@
       const pills = $('#statusPills');
       pills.innerHTML = '';
       const mk = (t)=>{ const s=document.createElement('span'); s.className='px-2 py-1 rounded-full border text-gray-600'; s.textContent=t; return s; };
-      pills.append(mk(`팀: ${TEAM_NAME}`));
+      
       if (state.me) pills.append(mk(`선택: ${state.me}`));
       const used = Number(state.totalUsed||0);
       const limit = Number(state.limitAmount||0);
@@ -291,7 +292,7 @@
       });
     }
 
-    function renderWhoAmI(){ $('#whoami').textContent = state.me ? `현재 선택: ${state.me}` : '사용자를 선택하세요.'; }
+    function renderWhoAmI(){ $('#whoami').textContent = state.me ? `현재 선택: ${state.me}` : ''; }
 
     function renderMemberGrid(){
       const grid = $('#memberGrid'); if (!grid) return; grid.innerHTML='';
