@@ -451,6 +451,120 @@
     }
 
     selfTest();
+    // === Date-only reservation overrides ===
+    function dateKeyFromAny(r){
+      if (r && r.dateKey) return r.dateKey;
+      if (r && r.startISO){
+        const d = new Date(r.startISO);
+        return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+      }
+      return null;
+    }
+    function todayKey(){
+      const d = new Date();
+      return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    }
+    function isDateReserved(key){
+      return state.reservations.some(r => dateKeyFromAny(r) === key);
+    }
+    function isDateReservedByOther(key, me){
+      return state.reservations.some(r => dateKeyFromAny(r) === key && r.name !== me);
+    }
+
+    // Override: autoFillDateInputs -> set date input default
+    function autoFillDateInputs(){
+      const el = document.getElementById('resvDate');
+      if (el){
+        const k = todayKey();
+        el.value = k;
+      }
+    }
+
+    // Override: addReservation to date-only
+    function addReservation(evt){
+      evt.preventDefault();
+      if (!state.me) return alert('먼저 사용자(팀원)를 선택하세요.');
+      const dEl = document.getElementById('resvDate');
+      const d = dEl && dEl.value;
+      if (!d) return alert('예약 날짜를 선택하세요.');
+      if (isDateReserved(d)) return alert('같은 날짜에 이미 예약이 있습니다.');
+      const r = { id: uid(), name: state.me, dateKey: d, purpose: (document.getElementById('purpose')?.value || '').trim() };
+      state.reservations.push(r);
+      sortReservations();
+      state.logs.unshift({ tsISO: nowISO(), name: state.me, action: '예약 추가', meta: r });
+      save();
+      document.getElementById('resvForm')?.reset();
+      autoFillDateInputs();
+      renderAll();
+    }
+
+    // Override: clearPastReservations based on dateKey
+    function clearPastReservations(){
+      const today = todayKey();
+      const before = state.reservations.length;
+      state.reservations = state.reservations.filter(r => (dateKeyFromAny(r) || '') >= today);
+      const removed = before - state.reservations.length;
+      if (removed>0) state.logs.unshift({ tsISO: nowISO(), name: state.me||'-', action: `지난 예약 ${removed}건 정리` });
+      save(); renderAll();
+    }
+
+    // Override: useNow to block if another person's reservation exists today
+    function useNow(){
+      if (!state.me) return alert('먼저 사용자(팀원)를 선택하세요.');
+      if (state.currentHolder && state.currentHolder.name !== state.me) {
+        return alert(`이미 '${state.currentHolder.name}'가 사용 중입니다.`);
+      }
+      const today = todayKey();
+      if (isDateReservedByOther(today, state.me)) {
+        return alert('이미 사용중입니다.');
+      }
+      if (!state.currentHolder){
+        state.currentHolder = { name: state.me, sinceISO: nowISO() };
+        state.logs.unshift({ tsISO: nowISO(), name: state.me, action: '지금 사용 시작', meta: { sinceISO: state.currentHolder.sinceISO } });
+        save(); renderAll();
+      }
+    }
+
+    // Override: renderReservations to show date
+    const _origRenderReservations = renderReservations;
+    function renderReservations(){
+      const ul = document.getElementById('resvList');
+      if (!ul) return;
+      ul.innerHTML = '';
+      sortReservations();
+      if (!state.reservations.length){ ul.innerHTML='<li class="p-4 text-sm text-gray-500">등록된 예약이 없습니다.</li>'; return; }
+      state.reservations.forEach(r=>{
+        const dk = dateKeyFromAny(r) || '-';
+        const li = document.createElement('li');
+        li.className = 'p-3 flex items-start gap-3';
+        li.innerHTML = `
+          <div class="grow">
+            <div class="text-sm font-medium">${r.name}</div>
+            <div class="text-xs text-gray-600 mt-0.5">${dk}</div>
+            ${r.purpose ? `<div class=\"text-xs text-gray-500 mt-1\">${escapeHtml(r.purpose)}</div>` : ''}
+          </div>
+          <div class="shrink-0 flex gap-2">
+            <button data-id="${r.id}" class="cancelResv px-2 py-1 rounded-lg border text-xs">취소</button>
+          </div>`;
+        ul.appendChild(li);
+      });
+      document.querySelectorAll('#resvList .cancelResv').forEach(btn=>{
+        btn.addEventListener('click', (e)=>{
+          const id = e.currentTarget.getAttribute('data-id');
+          const idx = state.reservations.findIndex(r=>r.id===id);
+          if (idx>=0){
+            const target = state.reservations[idx];
+            const dk = dateKeyFromAny(target) || '';
+            if (!confirm(`예약을 취소할까요?
+${target.name} · ${dk}`)) return;
+            state.reservations.splice(idx,1);
+            state.logs.unshift({ tsISO: nowISO(), name: state.me||'-', action: '예약 취소', meta: target });
+            save(); renderAll();
+          }
+        });
+      });
+    }
+
     document.addEventListener('DOMContentLoaded', init);
   </script>
 </body>
