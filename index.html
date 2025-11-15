@@ -4,27 +4,42 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>법카 예약 · 사용 기록 | 프로모션 마케팅 팀</title>
-  <meta name="description" content="프로모션 마케팅 팀 법카 예약 및 사용/반납 기록 웹앱" />
-  <!-- Tailwind Play CDN (single-file, GH Pages-friendly) -->
+  <meta name="description" content="프로모션 마케팅 팀 법카 예약 및 사용 기록 웹앱" />
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     :root { --sab: env(safe-area-inset-bottom); }
-    .safe-bottom { padding-bottom: calc(1rem + var(--sab)); }
     .sticky-cta { padding-bottom: calc(0.5rem + var(--sab)); }
+
     input[type=number]::-webkit-outer-spin-button,
     input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
     input[type=number] { -moz-appearance: textfield; }
-    /* Make limit/used/left more prominent */
-    #statusPills{ gap: .5rem; }
-    #statusPills span{ background:#f9fafb; border-color:#e5e7eb; font-weight:600; padding:.35rem .6rem; }
-    /* Order in pills: 팀, 선택, 한도(4), 사용(5), 잔여(6) — color-code key ones */
-    #statusPills span:nth-child(4){ background:#fff; color:#111827; border-color:#111827; }
-    #statusPills span:nth-child(5){ background:#111827; color:#fff; border-color:#111827; }
-    #statusPills span:nth-child(6){ background:#D9FF3F; color:#000; border-color:#C8F536; }
+
+    #statusPills{ gap:.5rem; }
+    #statusPills span{
+      background:#f9fafb;
+      border-color:#e5e7eb;
+      font-weight:600;
+      padding:.35rem .6rem;
+    }
+    #statusPills span:nth-child(3){
+      background:#fff;
+      color:#111827;
+      border-color:#111827;
+    }
+    #statusPills span:nth-child(4){
+      background:#111827;
+      color:#fff;
+      border-color:#111827;
+    }
+    #statusPills span:nth-child(5){
+      background:#D9FF3F;
+      color:#000;
+      border-color:#C8F536;
+    }
   </style>
 </head>
 <body class="bg-white text-gray-900">
-  <div class="max-w-md mx-auto min-h-screen pb-40">
+  <div class="max-w-md mx-auto min-h-screen pb-28">
     <!-- Header -->
     <header class="sticky top-0 z-30 bg-white/80 backdrop-blur border-b">
       <div class="px-4 py-3">
@@ -34,7 +49,7 @@
       </div>
     </header>
 
-    <!-- Member select -->
+    <!-- User selection -->
     <section class="px-4 pt-4">
       <h2 class="text-xl font-bold">지금 사용 시작</h2>
       <p class="text-sm text-gray-400 mt-1">사용자를 탭하여 선택</p>
@@ -42,12 +57,15 @@
       <p id="whoami" class="mt-2 text-xs text-gray-500"></p>
     </section>
 
-    <!-- Pills: team, me, limit/used/left -->
+    <!-- Status pills -->
     <section class="px-4 mt-3">
-      <div class="flex flex-wrap gap-2 text-xs" id="statusPills"></div>
+      <div id="statusPills" class="flex flex-wrap text-xs"></div>
     </section>
 
-    <!-- Reservation form -->
+    <!-- Budget summary -->
+    <section class="px-4 mt-4" id="budgetSummary"></section>
+
+    <!-- Reservation (date only) -->
     <section class="px-4 mt-6">
       <h2 class="text-xl font-bold">예약하기</h2>
       <form id="resvForm" class="mt-3 grid grid-cols-1 gap-3">
@@ -64,7 +82,7 @@
       <p class="text-xs text-gray-500 mt-2">※ 같은 날짜에 중복 예약은 불가합니다.</p>
     </section>
 
-    <!-- Reservations -->
+    <!-- Reservation list -->
     <section class="px-4 mt-6">
       <div class="flex items-center justify-between">
         <h2 class="text-xl font-bold">예약 목록</h2>
@@ -73,17 +91,16 @@
       <ul id="resvList" class="mt-3 divide-y border rounded-xl overflow-hidden"></ul>
     </section>
 
-    <!-- Logs -->
-    <section class="px-4 mt-6 mb-44">
+    <!-- Usage log -->
+    <section class="px-4 mt-6 mb-40">
       <div class="flex items-center justify-between">
         <h2 class="text-xl font-bold">사용 기록</h2>
-        <div class="flex gap-2">
-          <button id="resetBtn" class="text-xs px-2 py-1 rounded-lg border text-red-600 border-red-300">전체 초기화</button>
-        </div>
+        <button id="resetBtn" class="text-xs px-2 py-1 rounded-lg border text-red-600 border-red-300">전체 초기화</button>
       </div>
       <ul id="logList" class="mt-3 space-y-2"></ul>
     </section>
-    <!-- Limit & settlement (moved to bottom) -->
+
+    <!-- Limit & settlement -->
     <section class="px-4 mt-6">
       <h2 class="text-xl font-bold">한도 · 정산</h2>
       <div class="mt-3 grid grid-cols-1 gap-3">
@@ -100,435 +117,263 @@
     </section>
   </div>
 
-  <!-- Sticky Quick Actions -->
+  <!-- Sticky actions -->
   <div class="fixed inset-x-0 bottom-0 z-40 bg-white/85 backdrop-blur border-t">
     <div class="max-w-md mx-auto px-4 pt-2 sticky-cta">
       <div class="grid grid-cols-2 gap-3">
         <button id="useNowBtn" class="rounded-2xl py-3 font-semibold bg-[#D9FF3F] text-black hover:bg-[#C8F536] transition-colors">사용 시작</button>
         <button id="returnBtn" class="rounded-2xl py-3 font-semibold bg-black text-white hover:bg-gray-900 transition-colors">반납 완료</button>
       </div>
-      
     </div>
   </div>
 
   <script>
-    // ====== Config ======
+    // 설정
     const TEAM_NAME = '프로모션 마케팅 팀';
     const MEMBERS = ['결','소희','연우','유진','지완','현화'];
-    const LS_KEY = 'pcard_app_v1';
+    const LS_KEY = 'pcard_app_v3';
     const API_URL = 'https://script.google.com/macros/s/AKfycbyX9dTw9kaHxaOu-0hAHfWzkAd3Cmp4lzXTHnOgJmN0109XJObVPgS0sw5333TmzOk9/exec';
-    const BACKEND = (typeof google !== 'undefined' && google.script && google.script.run)
-      ? 'sheets'
-      : (typeof API_URL === 'string' && API_URL.startsWith('https://script.google.com/'))
-        ? 'sheets_rest'
-        : 'local';
 
-    // ====== Backend helpers ======
-    function gsRun(fnName, payload){
-      return new Promise((resolve, reject)=>{
-        try{
-          if (BACKEND !== 'sheets') throw new Error('not-sheets');
-          google.script.run
-            .withSuccessHandler(resolve)
-            .withFailureHandler(reject)[fnName](payload || null);
-        }catch(e){ reject(e); }
-      });
-    }
-    async function gsRestGetState(){
-      if (BACKEND !== 'sheets_rest') throw new Error('not-sheets-rest');
-      const url = API_URL + '?fn=getState&ts=' + Date.now();
-      const res = await fetch(url, { method: 'GET' });
-      if (!res.ok) throw new Error('GET failed ' + res.status);
-      return res.json();
-    }
-    async function gsRestSaveState(snapshot){
-      if (BACKEND !== 'sheets_rest') throw new Error('not-sheets-rest');
-      const body = new URLSearchParams({ fn: 'saveState', payload: JSON.stringify(snapshot) });
-      const res = await fetch(API_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body
-      });
-      if (!res.ok) throw new Error('POST failed ' + res.status);
-      return res.text();
-    }
+    const BACKEND = (typeof API_URL === 'string' && API_URL.startsWith('https://script.google.com/'))
+      ? 'sheets_rest'
+      : 'local';
 
-    // ====== State ======
+    // 상태
     const state = {
-      currentHolder: null,     // { name, sinceISO } | null
-      reservations: [],        // [{ id, name, startISO, endISO, purpose }]
-      logs: [],                // [{ tsISO, name, action, meta }]
-      me: null,                // selected member
-      limitAmount: 0,          // 월 한도 (원)
-      totalUsed: 0             // 사용 합계 (원)
+      currentHolder: null,
+      reservations: [],
+      logs: [],
+      me: null,
+      limitAmount: 0,
+      totalUsed: 0
     };
 
-    // ====== Utils ======
+    // 유틸
     const $ = sel => document.querySelector(sel);
     const $$ = sel => Array.from(document.querySelectorAll(sel));
-    const fmt = (iso) => { try { return new Intl.DateTimeFormat('ko-KR',{dateStyle:'medium', timeStyle:'short'}).format(new Date(iso)); } catch { return iso; } };
-    const nowISO = () => new Date().toISOString();
-    const uid = () => Math.random().toString(36).slice(2,9);
-    const fmtKRW = (n) => new Intl.NumberFormat('ko-KR',{ style:'currency', currency:'KRW', maximumFractionDigits:0 }).format(Number(n||0));
-    const parseAmt = (x) => Math.max(0, Math.floor(Number(String(x||'').replace(/[^\d.-]/g,'')||0)));
 
-    async function save(){
-      const snapshot = { currentHolder: state.currentHolder, reservations: state.reservations, logs: state.logs, limitAmount: state.limitAmount, totalUsed: state.totalUsed };
-      try{
-        if (BACKEND === 'sheets')      await gsRun('saveState', snapshot);
-        else if (BACKEND === 'sheets_rest') await gsRestSaveState(snapshot);
-        else localStorage.setItem(LS_KEY, JSON.stringify(state));
-      }catch(e){ console.warn('save failed', e); if (BACKEND!=='local') localStorage.setItem(LS_KEY, JSON.stringify(state)); }
-    }
-
-    async function load(){
-      if (BACKEND === 'sheets'){
-        try{ const remote = await gsRun('getState'); if (remote && typeof remote==='object') Object.assign(state, remote); }
-        catch(e){ const raw = localStorage.getItem(LS_KEY); if (raw) try{ Object.assign(state, JSON.parse(raw)); }catch{} }
-      } else if (BACKEND === 'sheets_rest'){
-        try{ const remote = await gsRestGetState(); if (remote && typeof remote==='object') Object.assign(state, remote); }
-        catch(e){ const raw = localStorage.getItem(LS_KEY); if (raw) try{ Object.assign(state, JSON.parse(raw)); }catch{} }
-      } else {
-        const raw = localStorage.getItem(LS_KEY); if (raw) try{ Object.assign(state, JSON.parse(raw)); }catch{}
-      }
-    }
-
-    function sortReservations(){
-      state.reservations.sort((a,b)=>{
-        const ak = a.dateKey ? a.dateKey : (a.startISO ? new Date(a.startISO).toISOString().slice(0,10) : '');
-        const bk = b.dateKey ? b.dateKey : (b.startISO ? new Date(b.startISO).toISOString().slice(0,10) : '');
-        return ak.localeCompare(bk);
-      });
-    }
-
-    function compactMeta(meta){
-      if (!meta) return '';
-      if (meta.amount) return fmtKRW(meta.amount);
-      if (meta.startISO && meta.endISO) return `${fmt(meta.startISO)}~${fmt(meta.endISO)}`;
-      if (meta.sinceISO) return `시작 ${fmt(meta.sinceISO)}`;
-      if (meta.purpose) return meta.purpose;
-      return '';
-    }
-
-    // ====== Render ======
-    function renderStatus(){
-      const box = $('#cardStatus');
-      box.innerHTML = '';
-      const dot = document.createElement('span'); dot.className = 'inline-block w-2.5 h-2.5 rounded-full';
-      const text = document.createElement('span'); text.className = 'text-sm';
-      if (state.currentHolder){ dot.classList.add('bg-black'); text.textContent = `사용 중 · ${state.currentHolder.name} (시작: ${fmt(state.currentHolder.sinceISO)})`; }
-      else { dot.classList.add('bg-[#D9FF3F]'); text.textContent = '사용 가능'; }
-      box.append(dot, text);
-
-      const pills = $('#statusPills');
-      pills.innerHTML = '';
-      const mk = (t)=>{ const s=document.createElement('span'); s.className='px-2 py-1 rounded-full border text-gray-600'; s.textContent=t; return s; };
-      
-      if (state.me) pills.append(mk(`선택: ${state.me}`));
-      const used = Number(state.totalUsed||0);
-      const limit = Number(state.limitAmount||0);
-      const left = limit>0 ? Math.max(0, limit - used) : null;
-      pills.append(mk(`한도 ${limit>0?fmtKRW(limit):'-'}`));
-      pills.append(mk(`사용 ${fmtKRW(used)}`));
-      pills.append(mk(`잔여 ${left!==null?fmtKRW(left):'-'}`));
-
-      const sum = $('#limitSummary');
-      if (sum) sum.textContent = `한도: ${limit>0?fmtKRW(limit):'-'} / 사용 합계: ${fmtKRW(used)} / 잔여: ${left!==null?fmtKRW(left):'-'}`;
-    }
-
-    function renderReservations(){
-      sortReservations();
-      const ul = $('#resvList'); ul.innerHTML='';
-      if (!state.reservations.length){ ul.innerHTML='<li class="p-4 text-sm text-gray-500">등록된 예약이 없습니다.</li>'; return; }
-      state.reservations.forEach(r=>{
-        const li=document.createElement('li'); li.className='p-3 flex items-start gap-3';
-        li.innerHTML = `
-          <div class="grow">
-            <div class="text-sm font-medium">${r.name}</div>
-            <div class="text-xs text-gray-600 mt-0.5">${fmt(r.startISO)} ~ ${fmt(r.endISO)}</div>
-            ${r.purpose ? `<div class="text-xs text-gray-500 mt-1">${escapeHtml(r.purpose)}</div>` : ''}
-          </div>
-          <div class="shrink-0 flex gap-2">
-            <button data-id="${r.id}" class="cancelResv px-2 py-1 rounded-lg border text-xs">취소</button>
-          </div>`;
-        ul.appendChild(li);
-      });
-      $$('#resvList .cancelResv').forEach(btn=> btn.addEventListener('click', (e)=>{
-        const id = e.currentTarget.getAttribute('data-id');
-        const idx = state.reservations.findIndex(r=>r.id===id);
-        if (idx>=0){
-          const target = state.reservations[idx];
-          if (!confirm(`예약을 취소할까요?\n${target.name} · ${fmt(target.startISO)} ~ ${fmt(target.endISO)}`)) return;
-          state.reservations.splice(idx,1);
-          state.logs.unshift({ tsISO: nowISO(), name: state.me||'-', action: '예약 취소', meta: target });
-          save(); renderAll();
-        }
-      }));
-    }
-
-    function renderLogs(){
-      const ul = $('#logList'); ul.innerHTML='';
-      const show = state.logs.slice(0,80);
-      if (!show.length){ ul.innerHTML='<li class="p-4 text-sm text-gray-500">기록이 없습니다.</li>'; return; }
-      show.forEach(L=>{
-        const li=document.createElement('li'); li.className='p-3 rounded-xl border bg-white shadow-sm';
-        li.innerHTML = `
-          <div class="text-xs text-gray-500">${fmt(L.tsISO)}</div>
-          <div class="mt-0.5 text-sm"><span class="font-medium">${L.name}</span> · ${L.action}
-            ${L.meta ? `<span class="text-gray-500">(${compactMeta(L.meta)})</span>` : ''}
-          </div>`;
-        ul.appendChild(li);
-      });
-    }
-
-    function renderWhoAmI(){ $('#whoami').textContent = state.me ? `현재 선택: ${state.me}` : ''; }
-
-    function renderMemberGrid(){
-      const grid = $('#memberGrid'); if (!grid) return; grid.innerHTML='';
-      MEMBERS.forEach(name=>{
-        const isActive = state.me===name;
-        const btn=document.createElement('button');
-        btn.type='button';
-        btn.className = `w-full rounded-2xl px-4 py-3 font-bold text-sm transition-colors ${isActive ? 'bg-[#D9FF3F] text-black' : 'bg-black text-white hover:bg-gray-900'}`;
-        btn.textContent=name;
-        btn.addEventListener('click',()=> setMe(name));
-        grid.appendChild(btn);
-      });
-    }
-
-    function renderAll(){
-      renderStatus();
-      renderReservations();
-      renderLogsDeferred();
-      renderWhoAmI();
-      renderMemberGrid();
-    }
-
-    let logsTimer=null;
-    function renderLogsDeferred(delay=250){
-      clearTimeout(logsTimer);
-      const ul = document.querySelector('#logList');
-      if (ul && !ul.dataset.ready) {
-        ul.innerHTML = '<li class="p-4 text-sm text-gray-400">기록 불러오는 중…</li>';
-      }
-      logsTimer = setTimeout(()=>{
-        renderLogs();
-        if (ul) ul.dataset.ready = '1';
-      }, delay);
-    }
-
-    // ====== Actions ======
-    function setMe(name){ state.me = name || null; save(); renderAll(); }
-
-    function useNow(){
-      if (!state.me) return alert('먼저 사용자(팀원)를 선택하세요.');
-      if (state.currentHolder && state.currentHolder.name !== state.me) return alert(`이미 '${state.currentHolder.name}'가 사용 중입니다.`);
-      if (!state.currentHolder){
-        state.currentHolder = { name: state.me, sinceISO: nowISO() };
-        state.logs.unshift({ tsISO: nowISO(), name: state.me, action: '지금 사용 시작', meta: { sinceISO: state.currentHolder.sinceISO } });
-        save(); renderAll();
-      }
-    }
-
-    function returnNow(){
-      if (!state.currentHolder) return alert('현재 사용 중이 아닙니다.');
-      if (!state.me || state.me !== state.currentHolder.name) {
-        // 보유자와 다른 사람이 반납하려는 경우도 허용할지? 여기서는 허용하되 기록에 남김
-      }
-      // ① 금액 입력 받기
-      const raw = prompt('이번에 사용한 금액을 입력하세요 (숫자만, 원):', '0');
-      if (raw===null) return; // 취소
-      const amt = parseAmt(raw);
-      if (!(amt >= 0)) return alert('금액이 올바르지 않습니다.');
-
-      // ② 합계 반영
-      state.totalUsed = Math.max(0, Number(state.totalUsed||0) + amt);
-
-      // ③ 반납 처리
-      const holder = state.currentHolder;
-      state.currentHolder = null;
-      state.logs.unshift({ tsISO: nowISO(), name: holder.name, action: '반납', meta: { amount: amt, sinceISO: holder.sinceISO } });
-      save(); renderAll();
-    }
-
-    function addReservation(evt){
-      evt.preventDefault();
-      if (!state.me) return alert('먼저 사용자(팀원)를 선택하세요.');
-      const d = document.getElementById('resvDate')?.value;
-      if (!d) return alert('예약 날짜를 선택하세요.');
-      if (isDateReserved && isDateReserved(d)) return alert('같은 날짜에 이미 예약이 있습니다.');
-      const r = { id: uid(), name: state.me, dateKey: d, purpose: (document.getElementById('purpose')?.value || '').trim() };
-      state.reservations.push(r); sortReservations();
-      state.logs.unshift({ tsISO: nowISO(), name: state.me, action: '예약 추가', meta: r });
-      save(); document.getElementById('resvForm')?.reset(); autoFillDateInputs(); renderAll();
+    const fmt = iso => {
+      try {
+        const d = new Date(iso);
+        return new Intl.DateTimeFormat('ko-KR', { dateStyle: 'medium', timeStyle: 'short' }).format(d);
+      } catch { return iso; }
     };
-      state.reservations.push(r); sortReservations();
-      state.logs.unshift({ tsISO: nowISO(), name: state.me, action: '예약 추가', meta: r });
-      save(); $('#resvForm').reset(); autoFillDateInputs(); renderAll();
-    }
 
-    function clearPastReservations(){
-      const now = Date.now();
-      const before = state.reservations.length;
-      state.reservations = state.reservations.filter(r=> new Date(r.endISO).getTime() > now);
-      const removed = before - state.reservations.length;
-      if (removed>0) state.logs.unshift({ tsISO: nowISO(), name: state.me||'-', action: `지난 예약 ${removed}건 정리` });
-      save(); renderAll();
-    }
+    const fmtKRW = n => {
+      const v = Number(n) || 0;
+      return v.toLocaleString('ko-KR') + '원';
+    };
 
-    function hardReset(){
-      if (!confirm('모든 데이터(사용자 선택, 예약, 기록, 한도/합계)를 초기화할까요?')) return;
-      localStorage.removeItem(LS_KEY);
-      state.currentHolder=null; state.reservations=[]; state.logs=[]; state.me=null; state.limitAmount=0; state.totalUsed=0;
-      save(); location.reload();
-    }
+    const nowISO = () => new Date().toISOString();
+    const uid = () => Math.random().toString(36).slice(2, 9);
 
-    function saveLimit(){
-      const v = parseAmt($('#limitInput').value);
-      state.limitAmount = v; save(); renderAll();
-    }
-    function resetTotals(){
-      if (!confirm('사용 금액 합계를 0으로 리셋할까요?')) return;
-      state.totalUsed = 0; save(); renderAll();
-    }
+    const todayKey = () => {
+      const d = new Date();
+      return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    };
 
-    function escapeHtml(str){ return String(str).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#39;'); }
-
-    function autoFillDateInputs(){
-      const el = document.getElementById('resvDate');
-      if (el){
-        const d = new Date();
-        const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-        el.value = key;
-      }
-    }-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-      $('#startAt').value = toLocal(start); $('#endAt').value = toLocal(end);
-    }
-
-    // ====== Init ======
-    async function init(){
-      // 1) 즉시 UI 렌더 (빠른 체감)
-      renderMemberGrid(); renderWhoAmI(); renderStatus();
-
-      // 2) 바인딩
-      $('#useNowBtn').addEventListener('click', useNow);
-      $('#returnBtn').addEventListener('click', returnNow);
-      $('#resvForm').addEventListener('submit', addReservation);
-      $('#clearPastBtn').addEventListener('click', clearPastReservations);
-      $('#resetBtn').addEventListener('click', hardReset);
-      $('#saveLimitBtn').addEventListener('click', saveLimit);
-      $('#resetTotalsBtn').addEventListener('click', resetTotals);
-
-      autoFillDateInputs();
-
-      // 3) 원격 로드 후 전체 렌더
-      try { await load(); } catch(e){ console.warn('load failed, using local if any', e); }
-      renderAll();
-
-      // 초기 입력칸 프리필
-      if (state.limitAmount>0) $('#limitInput').value = state.limitAmount;
-    }
-
-    // ====== Self Tests (non-intrusive) ======
-    function selfTest(){
-      try{
-        console.assert(Array.isArray(MEMBERS)&&MEMBERS.length===6,'MEMBERS length');
-        console.assert(['local','sheets','sheets_rest'].includes(BACKEND),'BACKEND mode');
-        const grid=document.getElementById('memberGrid');
-        setTimeout(()=>{
-          console.assert(grid && grid.children.length===6,'memberGrid buttons');
-        },0);
-        // limit & total tests
-        const prevLimit=state.limitAmount, prevTotal=state.totalUsed;
-        state.limitAmount=100000; state.totalUsed=25000; renderStatus();
-        console.assert($('#limitSummary').textContent.includes('잔여'), 'summary render');
-        state.limitAmount=prevLimit; state.totalUsed=prevTotal; renderStatus();
-      }catch(e){ console.warn('SelfTest error', e); }
-    }
-
-    selfTest();
-    // === Date-only reservation overrides ===
-    function dateKeyFromAny(r){
-      if (r && r.dateKey) return r.dateKey;
-      if (r && r.startISO){
+    const dateKeyFromAny = r => {
+      if (!r) return null;
+      if (r.dateKey) return r.dateKey;
+      if (r.startISO) {
         const d = new Date(r.startISO);
         return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
       }
       return null;
-    }
-    function todayKey(){
-      const d = new Date();
-      return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-    }
-    function isDateReserved(key){
-      return state.reservations.some(r => dateKeyFromAny(r) === key);
-    }
-    function isDateReservedByOther(key, me){
-      return state.reservations.some(r => dateKeyFromAny(r) === key && r.name !== me);
+    };
+
+    const isDateReserved = key =>
+      state.reservations.some(r => dateKeyFromAny(r) === key);
+
+    const isDateReservedByOther = (key, me) =>
+      state.reservations.some(r => dateKeyFromAny(r) === key && r.name !== me);
+
+    function escapeHtml(str){
+      return String(str)
+        .replaceAll('&','&amp;')
+        .replaceAll('<','&lt;')
+        .replaceAll('>','&gt;')
+        .replaceAll('"','&quot;')
+        .replaceAll("'",'&#39;');
     }
 
-    // Override: autoFillDateInputs -> set date input default
-    function autoFillDateInputs(){
-      const el = document.getElementById('resvDate');
-      if (el){
-        const k = todayKey();
-        el.value = k;
+    // 시트 REST
+    async function gsRestGetState(){
+      if (BACKEND !== 'sheets_rest') throw new Error('not sheets_rest');
+      const url = API_URL + '?fn=getState&ts=' + Date.now();
+      const res = await fetch(url, { method: 'GET', mode: 'cors' });
+      if (!res.ok) throw new Error('GET failed ' + res.status);
+      return await res.json();
+    }
+
+    async function gsRestSaveState(snapshot){
+      if (BACKEND !== 'sheets_rest') return;
+      const body = new URLSearchParams({ fn:'saveState', payload: JSON.stringify(snapshot) });
+      const res = await fetch(API_URL, {
+        method:'POST',
+        mode:'cors',
+        headers:{ 'Content-Type':'application/x-www-form-urlencoded' },
+        body
+      });
+      if (!res.ok) throw new Error('POST failed ' + res.status);
+    }
+
+    // 저장 / 불러오기
+    async function save(){
+      const snapshot = {
+        currentHolder: state.currentHolder,
+        reservations: state.reservations,
+        logs: state.logs,
+        limitAmount: state.limitAmount,
+        totalUsed: state.totalUsed
+      };
+      try {
+        if (BACKEND === 'sheets_rest') {
+          await gsRestSaveState(snapshot);
+        }
+        localStorage.setItem(LS_KEY, JSON.stringify(snapshot));
+      } catch(e){
+        console.warn('save error', e);
       }
     }
 
-    // Override: addReservation to date-only
-    function addReservation(evt){
-      evt.preventDefault();
-      if (!state.me) return alert('먼저 사용자(팀원)를 선택하세요.');
-      const dEl = document.getElementById('resvDate');
-      const d = dEl && dEl.value;
-      if (!d) return alert('예약 날짜를 선택하세요.');
-      if (isDateReserved(d)) return alert('같은 날짜에 이미 예약이 있습니다.');
-      const r = { id: uid(), name: state.me, dateKey: d, purpose: (document.getElementById('purpose')?.value || '').trim() };
-      state.reservations.push(r);
-      sortReservations();
-      state.logs.unshift({ tsISO: nowISO(), name: state.me, action: '예약 추가', meta: r });
-      save();
-      document.getElementById('resvForm')?.reset();
-      autoFillDateInputs();
-      renderAll();
-    }
-
-    // Override: clearPastReservations based on dateKey
-    function clearPastReservations(){
-      const today = todayKey();
-      const before = state.reservations.length;
-      state.reservations = state.reservations.filter(r => (dateKeyFromAny(r) || '') >= today);
-      const removed = before - state.reservations.length;
-      if (removed>0) state.logs.unshift({ tsISO: nowISO(), name: state.me||'-', action: `지난 예약 ${removed}건 정리` });
-      save(); renderAll();
-    }
-
-    // Override: useNow to block if another person's reservation exists today
-    function useNow(){
-      if (!state.me) return alert('먼저 사용자(팀원)를 선택하세요.');
-      if (state.currentHolder && state.currentHolder.name !== state.me) {
-        return alert(`이미 '${state.currentHolder.name}'가 사용 중입니다.`);
+    async function load(){
+      // 로컬 우선
+      const raw = localStorage.getItem(LS_KEY);
+      if (raw) {
+        try { Object.assign(state, JSON.parse(raw)); }
+        catch(e){ console.warn('local parse error', e); }
       }
-      const today = todayKey();
-      if (isDateReservedByOther(today, state.me)) {
-        return alert('이미 사용중입니다.');
-      }
-      if (!state.currentHolder){
-        state.currentHolder = { name: state.me, sinceISO: nowISO() };
-        state.logs.unshift({ tsISO: nowISO(), name: state.me, action: '지금 사용 시작', meta: { sinceISO: state.currentHolder.sinceISO } });
-        save(); renderAll();
+
+      // 원격 동기화
+      if (BACKEND === 'sheets_rest') {
+        try {
+          const remote = await gsRestGetState();
+          if (remote && typeof remote === 'object') {
+            Object.assign(state, remote);
+            localStorage.setItem(LS_KEY, JSON.stringify(remote));
+          }
+        } catch(e){
+          console.warn('remote load error', e);
+        }
       }
     }
 
-    // Override: renderReservations to show date
-    const _origRenderReservations = renderReservations;
+    // 정렬
+    function sortReservations(){
+      state.reservations.sort((a,b)=>{
+        const ak = dateKeyFromAny(a) || '';
+        const bk = dateKeyFromAny(b) || '';
+        return ak.localeCompare(bk);
+      });
+    }
+
+    // 렌더링
+    function renderStatus(){
+      const box = $('#cardStatus');
+      box.innerHTML = '';
+      const dot = document.createElement('span');
+      dot.className = 'inline-block w-2.5 h-2.5 rounded-full';
+      const text = document.createElement('span');
+      text.className = 'text-sm';
+
+      if (state.currentHolder){
+        dot.classList.add('bg-black');
+        text.textContent = `사용 중 · ${state.currentHolder.name} (시작: ${fmt(state.currentHolder.sinceISO)})`;
+      } else {
+        dot.classList.add('bg-[#D9FF3F]');
+        text.textContent = '사용 가능';
+      }
+      box.append(dot, text);
+
+      const pills = $('#statusPills');
+      pills.innerHTML = '';
+
+      const mk = t => {
+        const s = document.createElement('span');
+        s.className = 'px-2 py-1 rounded-full border text-gray-700 bg-gray-50';
+        s.textContent = t;
+        return s;
+      };
+
+      pills.append(mk(`팀: ${TEAM_NAME}`));
+      if (state.me) pills.append(mk(`선택: ${state.me}`));
+
+      const used = Number(state.totalUsed || 0);
+      const limit = Number(state.limitAmount || 0);
+      const left = limit > 0 ? Math.max(0, limit - used) : null;
+
+      pills.append(mk(`한도 ${limit>0 ? fmtKRW(limit) : '-'}`));
+      pills.append(mk(`사용 ${fmtKRW(used)}`));
+      pills.append(mk(`잔여 ${left!==null ? fmtKRW(left) : '-'}`));
+
+      const wrap = $('#budgetSummary');
+      const pct = limit>0 ? Math.max(0, Math.min(100, Math.round(used/limit*100))) : 0;
+      const warn = limit>0 && used >= limit;
+      const near = limit>0 && used/limit >= 0.8 && used < limit;
+
+      wrap.innerHTML = `
+        <div class="rounded-2xl border p-4 bg-white shadow-sm">
+          <div class="grid grid-cols-3 gap-3 text-center">
+            <div>
+              <div class="text-xs text-gray-500">한도</div>
+              <div class="text-lg font-extrabold">${limit>0 ? fmtKRW(limit) : '-'}</div>
+            </div>
+            <div>
+              <div class="text-xs text-gray-500">사용</div>
+              <div class="text-lg font-extrabold text-gray-900">${fmtKRW(used)}</div>
+            </div>
+            <div>
+              <div class="text-xs text-gray-500">잔여</div>
+              <div class="text-lg font-extrabold ${warn?'text-red-600':near?'text-amber-600':'text-emerald-700'}">
+                ${left!==null ? fmtKRW(left) : '-'}
+              </div>
+            </div>
+          </div>
+          <div class="mt-3">
+            <div class="w-full h-2 rounded-full bg-gray-100 overflow-hidden">
+              <div class="h-2 ${warn?'bg-red-500':near?'bg-amber-400':'bg-[#D9FF3F]'}" style="width:${pct}%; transition:width .4s ease"></div>
+            </div>
+            <div class="mt-1 text-[10px] text-gray-500">${limit>0 ? `사용률 ${pct}%` : '한도를 설정하세요'}</div>
+          </div>
+          ${warn ? '<div class="mt-2 text-xs font-medium text-red-600">한도를 초과했습니다. 한도 조정 또는 합계 점검이 필요합니다.</div>' : ''}
+        </div>
+      `;
+
+      const sum = $('#limitSummary');
+      if (sum){
+        sum.textContent = `한도: ${limit>0 ? fmtKRW(limit) : '-'} / 사용 합계: ${fmtKRW(used)} / 잔여: ${left!==null ? fmtKRW(left) : '-'}`;
+      }
+    }
+
+    function renderWhoAmI(){
+      $('#whoami').textContent = state.me ? `현재 선택: ${state.me}` : '';
+    }
+
+    function renderMemberGrid(){
+      const grid = $('#memberGrid');
+      grid.innerHTML = '';
+      MEMBERS.forEach(name => {
+        const isActive = state.me === name;
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = `w-full rounded-2xl px-4 py-3 font-bold text-sm transition-colors ${
+          isActive ? 'bg-[#D9FF3F] text-black' : 'bg-black text-white hover:bg-gray-900'
+        }`;
+        btn.textContent = name;
+        btn.addEventListener('click', () => setMe(name));
+        grid.appendChild(btn);
+      });
+    }
+
     function renderReservations(){
-      const ul = document.getElementById('resvList');
-      if (!ul) return;
-      ul.innerHTML = '';
       sortReservations();
-      if (!state.reservations.length){ ul.innerHTML='<li class="p-4 text-sm text-gray-500">등록된 예약이 없습니다.</li>'; return; }
+      const ul = $('#resvList');
+      ul.innerHTML = '';
+      if (!state.reservations.length){
+        ul.innerHTML = '<li class="p-4 text-sm text-gray-500">등록된 예약이 없습니다.</li>';
+        return;
+      }
       state.reservations.forEach(r=>{
         const dk = dateKeyFromAny(r) || '-';
         const li = document.createElement('li');
@@ -537,30 +382,233 @@
           <div class="grow">
             <div class="text-sm font-medium">${r.name}</div>
             <div class="text-xs text-gray-600 mt-0.5">${dk}</div>
-            ${r.purpose ? `<div class=\"text-xs text-gray-500 mt-1\">${escapeHtml(r.purpose)}</div>` : ''}
+            ${r.purpose ? `<div class="text-xs text-gray-500 mt-1">${escapeHtml(r.purpose)}</div>` : ''}
           </div>
           <div class="shrink-0 flex gap-2">
             <button data-id="${r.id}" class="cancelResv px-2 py-1 rounded-lg border text-xs">취소</button>
-          </div>`;
+          </div>
+        `;
         ul.appendChild(li);
       });
-      document.querySelectorAll('#resvList .cancelResv').forEach(btn=>{
-        btn.addEventListener('click', (e)=>{
+      $$('#resvList .cancelResv').forEach(btn=>{
+        btn.addEventListener('click', e=>{
           const id = e.currentTarget.getAttribute('data-id');
           const idx = state.reservations.findIndex(r=>r.id===id);
           if (idx>=0){
             const target = state.reservations[idx];
             const dk = dateKeyFromAny(target) || '';
-            if (!confirm(`예약을 취소할까요?
-${target.name} · ${dk}`)) return;
+            if (!confirm(`예약을 취소할까요?\n${target.name} · ${dk}`)) return;
             state.reservations.splice(idx,1);
-            state.logs.unshift({ tsISO: nowISO(), name: state.me||'-', action: '예약 취소', meta: target });
-            save(); renderAll();
+            state.logs.unshift({ tsISO: nowISO(), name: state.me || '-', action:'예약 취소', meta: target });
+            save();
+            renderAll();
           }
         });
       });
     }
 
+    function compactMeta(meta){
+      if (!meta) return '';
+      if (meta.dateKey) return meta.dateKey;
+      if (meta.sinceISO) return '시작 ' + fmt(meta.sinceISO);
+      if (meta.amount) return fmtKRW(meta.amount);
+      if (meta.purpose) return meta.purpose;
+      return '';
+    }
+
+    function renderLogs(){
+      const ul = $('#logList');
+      ul.innerHTML = '';
+      const show = state.logs.slice(0,80);
+      if (!show.length){
+        ul.innerHTML = '<li class="p-4 text-sm text-gray-500">기록이 없습니다.</li>';
+        return;
+      }
+      show.forEach(L=>{
+        const li = document.createElement('li');
+        li.className = 'p-3 rounded-xl border bg-white shadow-sm';
+        li.innerHTML = `
+          <div class="text-xs text-gray-500">${fmt(L.tsISO)}</div>
+          <div class="mt-0.5 text-sm">
+            <span class="font-medium">${L.name}</span> · ${L.action}
+            ${L.meta ? `<span class="text-gray-500">(${compactMeta(L.meta)})</span>` : ''}
+          </div>
+        `;
+        ul.appendChild(li);
+      });
+    }
+
+    let logsTimer = null;
+    function renderLogsDeferred(delay=250){
+      clearTimeout(logsTimer);
+      const ul = $('#logList');
+      if (ul && !ul.dataset.ready){
+        ul.innerHTML = '<li class="p-4 text-sm text-gray-400">기록 불러오는 중…</li>';
+      }
+      logsTimer = setTimeout(()=>{
+        renderLogs();
+        if (ul) ul.dataset.ready = '1';
+      }, delay);
+    }
+
+    function renderAll(){
+      renderStatus();
+      renderReservations();
+      renderWhoAmI();
+      renderMemberGrid();
+      renderLogsDeferred();
+    }
+
+    // 액션들
+    function setMe(name){
+      state.me = name || null;
+      save();
+      renderWhoAmI();
+      renderMemberGrid();
+      renderStatus();
+    }
+
+    function useNow(){
+      if (!state.me) return alert('먼저 사용자(팀원)를 선택하세요.');
+      if (state.currentHolder && state.currentHolder.name !== state.me){
+        return alert(`이미 '${state.currentHolder.name}'가 사용 중입니다.`);
+      }
+      const today = todayKey();
+      if (isDateReservedByOther(today, state.me)){
+        return alert('이미 사용중입니다.');
+      }
+      if (!state.currentHolder){
+        state.currentHolder = { name: state.me, sinceISO: nowISO() };
+        state.logs.unshift({
+          tsISO: nowISO(),
+          name: state.me,
+          action: '지금 사용 시작',
+          meta: { sinceISO: state.currentHolder.sinceISO }
+        });
+        save();
+        renderAll();
+      }
+    }
+
+    function returnNow(){
+      if (!state.currentHolder) return alert('현재 사용 중이 아닙니다.');
+      const holder = state.currentHolder;
+
+      let amount = prompt('이번 사용 금액을 입력하세요. (숫자만, 원 단위)');
+      if (amount === null) return;
+      amount = Number(String(amount).replaceAll(',','').trim());
+      if (!Number.isFinite(amount) || amount < 0){
+        return alert('금액을 숫자로 다시 입력하세요.');
+      }
+
+      state.totalUsed = Number(state.totalUsed || 0) + amount;
+      state.currentHolder = null;
+
+      state.logs.unshift({
+        tsISO: nowISO(),
+        name: holder.name,
+        action: '반납',
+        meta: { sinceISO: holder.sinceISO, amount }
+      });
+
+      save();
+      renderAll();
+    }
+
+    function addReservation(evt){
+      evt.preventDefault();
+      if (!state.me) return alert('먼저 사용자(팀원)를 선택하세요.');
+      const dEl = $('#resvDate');
+      const d = dEl && dEl.value;
+      if (!d) return alert('예약 날짜를 선택하세요.');
+      if (isDateReserved(d)) return alert('같은 날짜에 이미 예약이 있습니다.');
+      const r = {
+        id: uid(),
+        name: state.me,
+        dateKey: d,
+        purpose: ($('#purpose').value || '').trim()
+      };
+      state.reservations.push(r);
+      sortReservations();
+      state.logs.unshift({ tsISO: nowISO(), name: state.me, action: '예약 추가', meta: r });
+      save();
+      $('#resvForm').reset();
+      autoFillDateInputs();
+      renderAll();
+    }
+
+    function clearPastReservations(){
+      const today = todayKey();
+      const before = state.reservations.length;
+      state.reservations = state.reservations.filter(r => (dateKeyFromAny(r) || '') >= today);
+      const removed = before - state.reservations.length;
+      if (removed>0){
+        state.logs.unshift({
+          tsISO: nowISO(),
+          name: state.me || '-',
+          action: `지난 예약 ${removed}건 정리`
+        });
+      }
+      save();
+      renderAll();
+    }
+
+    function hardReset(){
+      if (!confirm('모든 데이터(예약, 사용 기록, 한도)를 초기화할까요?')) return;
+      localStorage.removeItem(LS_KEY);
+      location.reload();
+    }
+
+    function autoFillDateInputs(){
+      const el = $('#resvDate');
+      if (el){
+        el.value = todayKey();
+      }
+    }
+
+    function saveLimit(){
+      const v = Number($('#limitInput').value || 0);
+      if (!Number.isFinite(v) || v < 0) return alert('한도를 숫자로 입력하세요.');
+      state.limitAmount = v;
+      save();
+      renderStatus();
+    }
+
+    function resetTotals(){
+      if (!confirm('사용 합계를 0으로 초기화할까요?')) return;
+      state.totalUsed = 0;
+      save();
+      renderStatus();
+      renderLogsDeferred();
+    }
+
+    // 초기화
+    async function init(){
+      await load();
+      autoFillDateInputs();
+
+      $('#useNowBtn').addEventListener('click', useNow);
+      $('#returnBtn').addEventListener('click', returnNow);
+      $('#resvForm').addEventListener('submit', addReservation);
+      $('#clearPastBtn').addEventListener('click', clearPastReservations);
+      $('#resetBtn').addEventListener('click', hardReset);
+      $('#saveLimitBtn').addEventListener('click', saveLimit);
+      $('#resetTotalsBtn').addEventListener('click', resetTotals);
+
+      renderAll();
+    }
+
+    // 간단 셀프테스트
+    function selfTest(){
+      try{
+        console.assert(Array.isArray(MEMBERS) && MEMBERS.length === 6, 'MEMBERS length 6');
+        console.assert(['local','sheets_rest'].includes(BACKEND), 'BACKEND ok');
+      }catch(e){
+        console.warn('selfTest error', e);
+      }
+    }
+
+    selfTest();
     document.addEventListener('DOMContentLoaded', init);
   </script>
 </body>
