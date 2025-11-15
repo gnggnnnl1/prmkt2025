@@ -52,12 +52,8 @@
       <h2 class="text-xl font-bold">예약하기</h2>
       <form id="resvForm" class="mt-3 grid grid-cols-1 gap-3">
         <div>
-          <label class="text-sm">시작</label>
-          <input type="datetime-local" id="startAt" class="mt-1 w-full rounded-xl border px-3 py-2" required />
-        </div>
-        <div>
-          <label class="text-sm">종료</label>
-          <input type="datetime-local" id="endAt" class="mt-1 w-full rounded-xl border px-3 py-2" required />
+          <label class="text-sm">예약 날짜</label>
+          <input type="date" id="resvDate" class="mt-1 w-full rounded-xl border px-3 py-2" required />
         </div>
         <div>
           <label class="text-sm">용도(메모)</label>
@@ -65,7 +61,7 @@
         </div>
         <button class="rounded-xl bg-white border border-gray-300 text-gray-900 hover:bg-gray-100 transition-colors py-3 font-medium">예약</button>
       </form>
-      <p class="text-xs text-gray-500 mt-2">※ 예약 시간 중복은 자동으로 차단됩니다.</p>
+      <p class="text-xs text-gray-500 mt-2">※ 같은 날짜에 중복 예약은 불가합니다.</p>
     </section>
 
     <!-- Reservations -->
@@ -197,19 +193,12 @@
       }
     }
 
-    function hasOverlap(startISO, endISO, ignoreId=null){
-      const s = new Date(startISO).getTime();
-      const e = new Date(endISO).getTime();
-      return state.reservations.some(r=>{
-        if (ignoreId && r.id===ignoreId) return false;
-        const rs = new Date(r.startISO).getTime();
-        const re = new Date(r.endISO).getTime();
-        return Math.max(s,rs) < Math.min(e,re);
-      });
-    }
-
     function sortReservations(){
-      state.reservations.sort((a,b)=> new Date(a.startISO)-new Date(b.startISO));
+      state.reservations.sort((a,b)=>{
+        const ak = a.dateKey ? a.dateKey : (a.startISO ? new Date(a.startISO).toISOString().slice(0,10) : '');
+        const bk = b.dateKey ? b.dateKey : (b.startISO ? new Date(b.startISO).toISOString().slice(0,10) : '');
+        return ak.localeCompare(bk);
+      });
     }
 
     function compactMeta(meta){
@@ -365,11 +354,14 @@
     function addReservation(evt){
       evt.preventDefault();
       if (!state.me) return alert('먼저 사용자(팀원)를 선택하세요.');
-      const s = $('#startAt').value; const e = $('#endAt').value;
-      if (!s || !e) return alert('시작/종료 시간을 입력하세요.');
-      if (new Date(s) >= new Date(e)) return alert('종료 시간은 시작 시간보다 늦어야 합니다.');
-      if (hasOverlap(s,e)) return alert('다른 예약과 시간이 겹칩니다.');
-      const r = { id: uid(), name: state.me, startISO: new Date(s).toISOString(), endISO: new Date(e).toISOString(), purpose: $('#purpose').value.trim() };
+      const d = document.getElementById('resvDate')?.value;
+      if (!d) return alert('예약 날짜를 선택하세요.');
+      if (isDateReserved && isDateReserved(d)) return alert('같은 날짜에 이미 예약이 있습니다.');
+      const r = { id: uid(), name: state.me, dateKey: d, purpose: (document.getElementById('purpose')?.value || '').trim() };
+      state.reservations.push(r); sortReservations();
+      state.logs.unshift({ tsISO: nowISO(), name: state.me, action: '예약 추가', meta: r });
+      save(); document.getElementById('resvForm')?.reset(); autoFillDateInputs(); renderAll();
+    };
       state.reservations.push(r); sortReservations();
       state.logs.unshift({ tsISO: nowISO(), name: state.me, action: '예약 추가', meta: r });
       save(); $('#resvForm').reset(); autoFillDateInputs(); renderAll();
@@ -403,9 +395,13 @@
     function escapeHtml(str){ return String(str).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#39;'); }
 
     function autoFillDateInputs(){
-      const now=new Date(); const start=new Date(now.getTime()+15*60*1000); const end=new Date(start.getTime()+60*60*1000);
-      const pad=n=>String(n).padStart(2,'0');
-      const toLocal=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+      const el = document.getElementById('resvDate');
+      if (el){
+        const d = new Date();
+        const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+        el.value = key;
+      }
+    }-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
       $('#startAt').value = toLocal(start); $('#endAt').value = toLocal(end);
     }
 
